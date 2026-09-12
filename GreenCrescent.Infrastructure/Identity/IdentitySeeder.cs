@@ -44,7 +44,7 @@ namespace GreenCrescent.Infrastructure.Identity
             }
 
             var adminEmail =
-                configuration["InitialAdmin:Email"];
+    configuration["InitialAdmin:Email"]?.Trim();
 
             if (string.IsNullOrWhiteSpace(adminEmail))
             {
@@ -53,15 +53,43 @@ namespace GreenCrescent.Infrastructure.Identity
             }
 
             var admin = await userManager.FindByEmailAsync(
-                adminEmail.Trim());
+                adminEmail);
 
             if (admin is null)
             {
-                throw new InvalidOperationException(
-                    $"لا يوجد حساب مسجل بالبريد {adminEmail}.");
-            }
+                var adminPassword =
+                    configuration["InitialAdmin:Password"];
 
-            if (!admin.EmailConfirmed)
+                if (string.IsNullOrWhiteSpace(adminPassword))
+                {
+                    throw new InvalidOperationException(
+                        "لم يتم تحديد كلمة مرور أول مدير.");
+                }
+
+                admin = new ApplicationUser
+                {
+                    UserName = adminEmail,
+                    Email = adminEmail,
+                    EmailConfirmed = true
+                };
+
+                var createResult =
+                    await userManager.CreateAsync(
+                        admin,
+                        adminPassword);
+
+                if (!createResult.Succeeded)
+                {
+                    var errors = string.Join(
+                        ", ",
+                        createResult.Errors.Select(error =>
+                            error.Description));
+
+                    throw new InvalidOperationException(
+                        $"تعذر إنشاء حساب المدير: {errors}");
+                }
+            }
+            else if (!admin.EmailConfirmed)
             {
                 admin.EmailConfirmed = true;
 
@@ -79,7 +107,6 @@ namespace GreenCrescent.Infrastructure.Identity
                         $"تعذر تأكيد حساب المدير: {errors}");
                 }
             }
-
             if (!await userManager.IsInRoleAsync(
                     admin,
                     AppRoles.Admin))
