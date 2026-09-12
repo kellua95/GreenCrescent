@@ -1,0 +1,145 @@
+.nav-brand {
+    height: 82px;
+    padding: 14px 16px;
+    background: #087443;
+    border-bottom: 1px solid #07683c;
+}
+
+    .nav-brand a {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        height: 100%;
+        color: white;
+        text-decoration: none;
+    }
+
+.brand-logo {
+    display: inline-flex;
+    flex: 0 0 46px;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    color: #087443;
+    background: white;
+    border-radius: 50%;
+    font-size: 27px;
+    font-weight: 900;
+}
+
+.brand-content {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+    .brand-content strong {
+        font-size: 17px;
+        font-weight: 800;
+    }
+
+    .brand-content small {
+        margin-top: 2px;
+        color: #d1fae5;
+        font-size: 12px;
+    }
+
+.nav-scrollable {
+    height: calc(100vh - 82px);
+    padding: 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background: white;
+}
+
+.nav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+    /* يجب استخدام ::deep لأن NavLink مكوّن Blazor */
+    .nav-menu ::deep a.nav-link,
+    .nav-menu .logout-link {
+        display: flex !important;
+        align-items: center;
+        gap: 11px;
+        width: 100%;
+        min-height: 45px;
+        margin: 0;
+        padding: 8px 10px;
+        color: #33413a !important;
+        background: transparent !important;
+        border: 0;
+        border-radius: 10px;
+        text-align: right;
+        text-decoration: none !important;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: color 150ms ease, background-color 150ms ease;
+    }
+
+        .nav-menu ::deep a.nav-link:hover,
+        .nav-menu .logout-link:hover {
+            color: #087443 !important;
+            background: #f0faf4 !important;
+        }
+
+        .nav-menu ::deep a.nav-link.active {
+            color: #07683c !important;
+            background: #e4f6eb !important;
+            font-weight: 800;
+        }
+
+.nav-symbol {
+    display: inline-flex;
+    flex: 0 0 31px;
+    align-items: center;
+    justify-content: center;
+    width: 31px;
+    height: 31px;
+    color: #087443;
+    background: #edf8f1;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.nav-menu ::deep a.nav-link.active .nav-symbol {
+    color: white;
+    background: #087443;
+}
+
+.nav-section-title {
+    margin: 18px 10px 6px;
+    color: #84928a;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+    .nav-section-title:first-of-type {
+        margin-top: 12px;
+    }
+
+.logout-form {
+    width: 100%;
+    margin: 0;
+}
+
+.logout-link {
+    color: #a33a32 !important;
+}
+
+    .logout-link .nav-symbol {
+        color: #a33a32;
+        background: #fff1f0;
+    }
+
+@media (max-width: 800px) {
+    .nav-scrollable {
+        height: calc(100dvh - 82px);
+    }
+}

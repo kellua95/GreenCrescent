@@ -1,0 +1,645 @@
+﻿@page "/beneficiaries"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using GreenCrescent.Application.Features.Beneficiaries
+@using GreenCrescent.Core.Enums
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Staff")]
+@inject IBeneficiaryService BeneficiaryService
+@implements IDisposable
+
+<PageTitle>إدارة المكفولين</PageTitle>
+
+<div class="sponsors-page" dir="rtl">
+    <header class="page-header">
+        <div>
+            <span class="section-label">إدارة الكفالات</span>
+            <h1>المكفولون</h1>
+            <p>إدارة بيانات المكفولين وحالات استحقاقهم للكفالة.</p>
+        </div>
+
+        <button class="primary-button" @onclick="StartCreate">
+            ＋ إضافة مكفول
+        </button>
+    </header>
+
+    @if (message is not null)
+    {
+        <div class="alert success-alert">@message</div>
+    }
+
+    @if (!showForm &&
+     !showArchiveForm &&
+     errorMessage is not null)
+    {
+        <div class="alert error-alert">@errorMessage</div>
+    }
+
+    <section class="content-grid">
+        <div class="list-card">
+            <div class="toolbar">
+                <div class="search-box">
+                    <span>⌕</span>
+                    <input value="@searchTerm"
+                           @oninput="SearchChanged"
+                           placeholder="ابحث بالاسم أو رقم الملف أو الهاتف..." />
+                </div>
+
+                <label class="inactive-filter">
+                    <input type="checkbox"
+                           checked="@includeArchived"
+                           @onchange="IncludeArchivedChanged" />
+                    عرض المؤرشفين
+                </label>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="empty-state">جاري تحميل البيانات...</div>
+            }
+            else if (beneficiaries.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>لا توجد نتائج</strong>
+                    <span>أضف مكفولًا جديدًا أو غيّر عبارة البحث.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>رقم الملف</th>
+                                <th>اسم المكفول</th>
+                                <th>الهاتف</th>
+                                <th>تاريخ الميلاد</th>
+                                <th>الكافل الحالي</th>
+                                <th>الحالة</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var beneficiary in beneficiaries)
+                            {
+                                <tr class="@(beneficiary.IsArchived ? "inactive-row" : null)">
+                                    <td>
+                                        <span class="count-badge">
+                                            @beneficiary.FileNumber
+                                        </span>
+                                    </td>
+
+                                    <td><strong>@beneficiary.Name</strong></td>
+                                    <td>@(beneficiary.PhoneNumber ?? "—")</td>
+
+                                    <td>
+                                        @(beneficiary.DateOfBirth?.ToString("yyyy/MM/dd") ?? "—")
+                                    </td>
+
+                                    <td>
+                                        @if (beneficiary.ActiveSponsorName is not null)
+                                        {
+                                            <strong>@beneficiary.ActiveSponsorName</strong>
+                                        }
+                                        else
+                                        {
+                                            <span class="muted-text">لا يوجد كافل</span>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        @if (beneficiary.ActiveSponsorshipId.HasValue)
+                                        {
+                                            <span class="status-badge active">
+                                                مكفول
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <select class="status-select @GetStatusClass(beneficiary.Status)"
+                                                    value="@((int)beneficiary.Status)"
+                                                    aria-label="حالة المكفول"
+                                                    @onchange="args => ChangeStatusAsync(beneficiary, args)">
+                                                <option value="@((int)BeneficiaryStatus.WaitingForSponsor)">
+                                                    بانتظار كافل
+                                                </option>
+                                                <option value="@((int)BeneficiaryStatus.NoLongerEligible)">
+                                                    غير مستحق
+                                                </option>
+                                                <option value="@((int)BeneficiaryStatus.Suspended)">
+                                                    موقوف
+                                                </option>
+                                            </select>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        <div class="actions">
+                                            <button type="button"
+                                                    class="edit-button"
+                                                    @onclick="() => StartEdit(beneficiary)">
+                                                تعديل
+                                            </button>
+
+                                            @if (beneficiary.IsArchived)
+                                            {
+                                                <button type="button"
+                                                        class="toggle-button restore-button"
+                                                        @onclick="() => RestoreAsync(beneficiary)">
+                                                    استعادة
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <button type="button"
+                                                        class="toggle-button archive-button"
+                                                        @onclick="() => StartArchive(beneficiary)">
+                                                    أرشفة
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        
+    </section>
+    <AppModal IsOpen="@showForm"
+              Title="@(editingId.HasValue
+                      ? "تعديل بيانات المكفول"
+                      : "إضافة مكفول جديد")"
+              Label="إدارة المكفولين"
+              OnClose="CloseForm">
+
+        @if (showForm &&
+             !string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert error-alert">
+                @errorMessage
+            </div>
+        }
+
+        <EditForm Model="@form"
+                  OnValidSubmit="SaveAsync"
+                  FormName="BeneficiaryForm"
+                  class="app-form">
+
+            <DataAnnotationsValidator />
+
+            <div class="form-field">
+                <label>
+                    رقم الملف
+                    <span>*</span>
+                </label>
+
+                <InputNumber @bind-Value="form.FileNumber"
+                             min="1"
+                             placeholder="رقم ملف المكفول" />
+
+                <ValidationMessage For="() => form.FileNumber" />
+            </div>
+
+            <div class="form-field">
+                <label>
+                    اسم المكفول
+                    <span>*</span>
+                </label>
+
+                <InputText @bind-Value="form.Name"
+                           autocomplete="name"
+                           placeholder="اكتب الاسم الكامل" />
+
+                <ValidationMessage For="() => form.Name" />
+            </div>
+
+            <div class="form-field">
+                <label>رقم الهاتف</label>
+
+                <InputText @bind-Value="form.PhoneNumber"
+                           type="tel"
+                           inputmode="tel"
+                           autocomplete="tel"
+                           dir="ltr"
+                           placeholder="0790000000" />
+
+                <ValidationMessage For="() => form.PhoneNumber" />
+            </div>
+
+            <div class="form-field">
+                <label>تاريخ الميلاد</label>
+
+                <InputDate @bind-Value="form.DateOfBirth" />
+
+                <ValidationMessage For="() => form.DateOfBirth" />
+            </div>
+
+            <div class="form-field">
+                <label>ملاحظات</label>
+
+                <InputTextArea @bind-Value="form.Notes"
+                               placeholder="معلومات إضافية..." />
+
+                <ValidationMessage For="() => form.Notes" />
+            </div>
+
+            <div class="form-actions">
+                <button type="submit"
+                        class="primary-button"
+                        disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span>جاري الحفظ...</span>
+                    }
+                    else if (editingId.HasValue)
+                    {
+                        <span>حفظ التعديلات</span>
+                    }
+                    else
+                    {
+                        <span>إضافة المكفول</span>
+                    }
+                </button>
+
+                <button type="button"
+                        class="cancel-button"
+                        disabled="@isSaving"
+                        @onclick="CloseForm">
+                    إلغاء
+                </button>
+            </div>
+        </EditForm>
+    </AppModal>
+
+    <AppModal IsOpen="@(showArchiveForm &&
+                           beneficiaryToArchive is not null)"
+              Title="أرشفة المكفول"
+              Label="تأكيد الإجراء"
+              OnClose="CloseArchiveForm">
+
+        @if (beneficiaryToArchive is not null)
+        {
+            <div class="archive-warning">
+                <strong>@beneficiaryToArchive.Name</strong>
+
+                <p>
+                    سيختفي المكفول من القائمة الأساسية مع الاحتفاظ
+                    بسجله وكفالاته السابقة.
+                </p>
+            </div>
+
+            @if (showArchiveForm &&
+                 !string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert error-alert">
+                    @errorMessage
+                </div>
+            }
+
+            <div class="app-form">
+                <div class="form-field">
+                    <label>
+                        سبب الأرشفة
+                        <span>*</span>
+                    </label>
+
+                    <textarea @bind="archiveReason"
+                              placeholder="اكتب سبب أرشفة المكفول"></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button"
+                            class="danger-button"
+                            disabled="@isSaving"
+                            @onclick="ConfirmArchiveAsync">
+                        @(isSaving ? "جاري الأرشفة..." : "تأكيد الأرشفة")
+                    </button>
+
+                    <button type="button"
+                            class="cancel-button"
+                            disabled="@isSaving"
+                            @onclick="CloseArchiveForm">
+                        إلغاء
+                    </button>
+                </div>
+            </div>
+        }
+    </AppModal>
+</div>
+
+@code {
+    private IReadOnlyList<BeneficiaryDto> beneficiaries = [];
+    private BeneficiaryFormModel form = new();
+
+    private int? editingId;
+    private string searchTerm = string.Empty;
+    private string? message;
+    private string? errorMessage;
+
+    private bool includeArchived;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showForm;
+
+    private BeneficiaryDto? beneficiaryToArchive;
+    private string archiveReason = string.Empty;
+    private bool showArchiveForm;
+
+    private CancellationTokenSource? searchCancellation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            beneficiaries = await BeneficiaryService.SearchAsync(
+                searchTerm,
+                includeArchived);
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string GetStatusClass(
+    BeneficiaryStatus status)
+    {
+        return status switch
+        {
+            BeneficiaryStatus.WaitingForSponsor =>
+                "status-waiting",
+
+            BeneficiaryStatus.NoLongerEligible =>
+                "status-not-eligible",
+
+            BeneficiaryStatus.Suspended =>
+                "status-suspended",
+
+            BeneficiaryStatus.Sponsored =>
+                "status-sponsored",
+
+            _ => string.Empty
+        };
+    }
+
+    private void CloseArchiveForm()
+    {
+        showArchiveForm = false;
+        beneficiaryToArchive = null;
+        archiveReason = string.Empty;
+        errorMessage = null;
+    }
+
+    private void StartArchive(BeneficiaryDto beneficiary)
+    {
+        beneficiaryToArchive = beneficiary;
+        archiveReason = string.Empty;
+        showArchiveForm = true;
+        ClearMessages();
+    }
+
+    private async Task ConfirmArchiveAsync()
+    {
+        if (beneficiaryToArchive is null)
+        {
+            return;
+        }
+
+        ClearMessages();
+
+        if (string.IsNullOrWhiteSpace(archiveReason))
+        {
+            errorMessage = "سبب الأرشفة مطلوب.";
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            await BeneficiaryService.ArchiveAsync(
+                beneficiaryToArchive.Id,
+                archiveReason);
+
+            message = "تمت أرشفة المكفول مع الاحتفاظ بسجله.";
+            CloseArchiveForm();
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+
+    }
+
+    private async Task RestoreAsync(
+        BeneficiaryDto beneficiary)
+    {
+        try
+        {
+            await BeneficiaryService.RestoreAsync(
+                beneficiary.Id);
+
+            message = "تمت استعادة المكفول من الأرشيف.";
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private async Task SearchChanged(ChangeEventArgs args)
+    {
+        searchTerm = args.Value?.ToString() ?? string.Empty;
+
+        searchCancellation?.Cancel();
+        searchCancellation?.Dispose();
+        searchCancellation = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(300, searchCancellation.Token);
+            await LoadAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task IncludeArchivedChanged(ChangeEventArgs args)
+    {
+        includeArchived = args.Value is bool value && value;
+        await LoadAsync();
+    }
+
+    private void StartCreate()
+    {
+        ClearMessages();
+        editingId = null;
+        form = new BeneficiaryFormModel();
+        showForm = true;
+    }
+
+    private void StartEdit(BeneficiaryDto beneficiary)
+    {
+        ClearMessages();
+        editingId = beneficiary.Id;
+
+        form = new BeneficiaryFormModel
+        {
+            FileNumber = beneficiary.FileNumber,
+            Name = beneficiary.Name,
+            PhoneNumber = beneficiary.PhoneNumber,
+            DateOfBirth = beneficiary.DateOfBirth,
+            Notes = beneficiary.Notes
+        };
+
+        showForm = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        isSaving = true;
+        ClearMessages();
+
+        try
+        {
+            if (editingId.HasValue)
+            {
+                await BeneficiaryService.UpdateAsync(
+                    new UpdateBeneficiaryRequest(
+                        editingId.Value,
+                        form.FileNumber,
+                        form.Name,
+                        form.PhoneNumber,
+                        form.DateOfBirth,
+                        form.Notes));
+
+                message = "تم تحديث بيانات المكفول.";
+            }
+            else
+            {
+                await BeneficiaryService.CreateAsync(
+                    new CreateBeneficiaryRequest(
+                        form.FileNumber,
+                        form.Name,
+                        form.PhoneNumber,
+                        form.DateOfBirth,
+                        form.Notes));
+
+                message = "تمت إضافة المكفول بنجاح.";
+            }
+
+            CloseForm();
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ChangeStatusAsync(
+        BeneficiaryDto beneficiary,
+        ChangeEventArgs args)
+    {
+        ClearMessages();
+
+        if (!int.TryParse(
+                args.Value?.ToString(),
+                out var statusValue))
+        {
+            return;
+        }
+
+        var newStatus = (BeneficiaryStatus)statusValue;
+
+        if (newStatus == beneficiary.Status)
+        {
+            return;
+        }
+
+        try
+        {
+            await BeneficiaryService.ChangeStatusAsync(
+                beneficiary.Id,
+                newStatus);
+
+            message = "تم تحديث حالة المكفول.";
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+            await LoadAsync();
+        }
+    }
+
+    private void CloseForm()
+    {
+        showForm = false;
+        editingId = null;
+        form = new BeneficiaryFormModel();
+    }
+
+    private void ClearMessages()
+    {
+        message = null;
+        errorMessage = null;
+    }
+
+    public void Dispose()
+    {
+        searchCancellation?.Cancel();
+        searchCancellation?.Dispose();
+    }
+
+    private sealed class BeneficiaryFormModel
+    {
+        [Range(1, int.MaxValue,
+            ErrorMessage = "رقم الملف يجب أن يكون أكبر من صفر.")]
+        public int FileNumber { get; set; }
+
+        [Required(ErrorMessage = "اسم المكفول مطلوب.")]
+        [StringLength(200,
+            ErrorMessage = "الاسم يجب ألا يتجاوز 200 حرف.")]
+        public string Name { get; set; } = string.Empty;
+
+        [StringLength(30,
+            ErrorMessage = "رقم الهاتف يجب ألا يتجاوز 30 حرفًا.")]
+        public string? PhoneNumber { get; set; }
+
+        public DateOnly? DateOfBirth { get; set; }
+
+        [StringLength(1000,
+            ErrorMessage = "الملاحظات يجب ألا تتجاوز 1000 حرف.")]
+        public string? Notes { get; set; }
+    }
+}

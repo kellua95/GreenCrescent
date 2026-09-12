@@ -1,0 +1,985 @@
+﻿@page "/reports"
+@rendermode InteractiveServer
+@using GreenCrescent.Application.Features.FinancialEntries
+@using GreenCrescent.Application.Features.Reports
+@using GreenCrescent.Core.Enums
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Staff,Viewer")]
+@inject IReportService ReportService
+@inject IJSRuntime JS
+@inject IExcelExportService ExcelExportService
+
+
+<PageTitle>التقارير</PageTitle>
+
+<div class="sponsors-page reports-page" dir="rtl">
+    <header class="page-header no-print">
+        <div>
+            <span class="section-label">السجلات والتقارير</span>
+            <h1>التقارير</h1>
+            <p>البحث في الكفالات والحركات المالية والتبرعات.</p>
+        </div>
+
+        <div class="report-buttons no-print">
+            <button class="primary-button" @onclick="PrintAsync">
+                طباعة التقرير
+            </button>
+
+            <button class="excel-button no-print" @onclick="ExportExcelAsync">
+                تصدير إلى Excel
+            </button>
+        </div>
+
+    </header>
+
+    @if (errorMessage is not null)
+    {
+        <div class="alert error-alert no-print">@errorMessage</div>
+    }
+
+    <nav class="report-tabs no-print">
+        <button class="@TabClass(ReportMode.General)"
+                @onclick="() => ChangeModeAsync(ReportMode.General)">
+            التقرير العام
+        </button>
+
+        <button class="@TabClass(ReportMode.Detailed)"
+                @onclick="() => ChangeModeAsync(ReportMode.Detailed)">
+            التقرير المفصل
+        </button>
+
+        <button class="@TabClass(ReportMode.Expired)"
+                @onclick="() => ChangeModeAsync(ReportMode.Expired)">
+            انتهاء الكفالات
+        </button>
+
+        <button class="@TabClass(ReportMode.Financial)"
+                @onclick="() => ChangeModeAsync(ReportMode.Financial)">
+            الإدخال المالي
+        </button>
+
+        <button class="@TabClass(ReportMode.Donations)"
+                @onclick="() => ChangeModeAsync(ReportMode.Donations)">
+            التبرعات
+        </button>
+    </nav>
+
+    <section class="filter-card no-print">
+        @if (mode is ReportMode.General or ReportMode.Detailed)
+        {
+            <div class="search-box">
+                <span>⌕</span>
+                <input value="@searchTerm"
+                       @oninput="SearchChanged"
+                       placeholder="اسم الكافل أو المكفول أو رقم الملف..." />
+            </div>
+
+            @if (mode == ReportMode.Detailed)
+            {
+                <label class="inactive-filter">
+                    <input type="checkbox"
+                           checked="@includeHistory"
+                           @onchange="HistoryChanged" />
+                    إظهار سجلات الكفالات السابقة 
+                </label>
+            }
+        }
+        else if (mode == ReportMode.Expired)
+        {
+            <div class="date-filter">
+                <label>إظهار الكفالات المنتهية حتى تاريخ</label>
+                <input type="date" @bind="selectedDate" />
+            </div>
+
+            <button class="primary-button" @onclick="ApplyFiltersAsync">
+                تطبيق
+            </button>
+        }
+        else
+        {
+            <div class="search-box">
+                <span>⌕</span>
+                <input value="@searchTerm"
+                       @oninput="SearchChanged"
+                       placeholder="المتبرع أو رقم الدفتر أو الوصل..." />
+            </div>
+
+            <div class="date-filter">
+                <label>من</label>
+                <input type="date" @bind="fromDate" />
+            </div>
+
+            <div class="date-filter">
+                <label>إلى</label>
+                <input type="date" @bind="toDate" />
+            </div>
+
+            <button class="primary-button" @onclick="ApplyFiltersAsync">
+                تطبيق
+            </button>
+        }
+    </section>
+    <div id="print-report">
+        <section class="report-heading">
+            <div>
+                <h2>@ReportTitle</h2>
+
+                <span>
+                    تاريخ الطباعة:
+                    @DateTime.Now.ToString("yyyy/MM/dd HH:mm")
+                </span>
+            </div>
+
+            <div class="result-count">
+                <strong>@ResultCount</strong>
+                <span>سجل</span>
+            </div>
+        </section>
+
+    @if (mode is ReportMode.Financial or ReportMode.Donations)
+    {
+        <section class="summary-cards">
+            <div>
+                <span>إجمالي الحركات المؤكدة</span>
+                <strong>@ConfirmedTotal.ToString("0.000") د.أ</strong>
+            </div>
+
+            <div>
+                <span>عدد الحركات</span>
+                <strong>@financialRows.Count</strong>
+            </div>
+        </section>
+    }
+
+    <section class="list-card report-table">
+        @if (isLoading)
+        {
+            <div class="empty-state">جاري إعداد التقرير...</div>
+        }
+        else if (ResultCount == 0)
+        {
+            <div class="empty-state">لا توجد بيانات مطابقة.</div>
+        }
+        else if (mode is ReportMode.General or ReportMode.Expired)
+        {
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("FileNumber")'>
+                                        رقم الملف @SortIndicator("FileNumber")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("BeneficiaryName")'>
+                                        المكفول @SortIndicator("BeneficiaryName")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("SponsorName")'>
+                                        الكافل @SortIndicator("SponsorName")
+                                    </button>
+                                </th>
+                                <th>هاتف الكافل</th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("ResponsibleSheikhName")'>
+                                        المعرّف @SortIndicator("ResponsibleSheikhName")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("MonthlyAmount")'>
+                                        قيمة الكفالة @SortIndicator("MonthlyAmount")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("StartDate")'>
+                                        البداية @SortIndicator("StartDate")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("EndDate")'>
+                                        النهاية @SortIndicator("EndDate")
+                                    </button>
+                                </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                            @foreach (var item in PagedGeneralRows)
+                        {
+                            <tr>
+                                <td>@item.FileNumber</td>
+                                <td><strong>@item.BeneficiaryName</strong></td>
+                                <td>@item.SponsorName</td>
+                                <td>@(item.SponsorPhoneNumber ?? "—")</td>
+                                <td>@item.ResponsibleSheikhName</td>
+                                <td>@item.MonthlyAmount.ToString("0.000")</td>
+                                <td>@item.StartDate.ToString("yyyy/MM/dd")</td>
+                                <td>
+                                    <span class="@EndDateClass(item.EndDate)">
+                                        @item.EndDate.ToString("yyyy/MM/dd")
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else if (mode == ReportMode.Detailed)
+        {
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("FileNumber")'>
+                                        رقم الملف @SortIndicator("FileNumber")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("SponsorName")'>
+                                        الكافل @SortIndicator("SponsorName")
+                                    </button>
+                                </th>
+                            <th>هاتف الكافل</th>
+                            <th>عنوان الكافل</th>
+
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("ResponsibleSheikhName")'>
+                                        المعرّف @SortIndicator("ResponsibleSheikhName")
+                                    </button>
+                                </th>
+
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("MonthlyAmount")'>
+                                        قيمة الكفالة @SortIndicator("MonthlyAmount")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("StartDate")'>
+                                        البداية @SortIndicator("StartDate")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("EndDate")'>
+                                        النهاية @SortIndicator("EndDate")
+                                    </button>
+                                </th>
+                            <th>
+                                <button class="sort-button" @onclick='() => SortBy("Status")'>
+                                    الحالة @SortIndicator("Status")
+                                </button>
+                            </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("BeneficiaryName")'>
+                                        اسم المكفول الحالي @SortIndicator("BeneficiaryName")
+                                    </button>
+                                </th>
+                            <th>هاتف المكفول</th>
+         
+                            <th>المكفول السابق الأول</th>
+                            <th>المكفول السابق الثاني</th>
+                            <th>المكفول السابق الثالث</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                            @foreach (var item in PagedDetailedRows)
+                        {
+                            <tr>
+                                <td>@item.FileNumber</td>
+
+                                <td><strong>@item.SponsorName</strong></td>
+
+                                <td>
+                                    @(item.SponsorPhoneNumber ?? "—")
+                                </td>
+
+                                <td>
+                                    @(item.SponsorAddress ?? "—")
+                                </td>
+
+                                <td>@item.ResponsibleSheikhName</td>
+                                
+                                <td>
+                                    @item.MonthlyAmount.ToString("0.000")
+                                </td>
+
+                                <td>
+                                    @item.StartDate.ToString("yyyy/MM/dd")
+                                </td>
+
+                                <td class="@EndDateClass(item.EndDate)">
+                                    @item.EndDate.ToString("yyyy/MM/dd")
+                                </td>
+
+                                <td>
+                                    @GetSponsorshipStatus(item.Status)
+                                </td>
+
+                                <td><strong>@item.BeneficiaryName</strong></td>
+
+                                <td>
+                                    @(item.BeneficiaryPhoneNumber ?? "—")
+                                </td>
+
+                                <td>
+                                    @(item.FirstPreviousBeneficiaryName ?? "—")
+                                </td>
+
+                                <td>
+                                    @(item.SecondPreviousBeneficiaryName ?? "—")
+                                </td>
+
+                                <td>
+                                    @(item.ThirdPreviousBeneficiaryName ?? "—")
+                                </td>
+
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        else
+        {
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("Id")'>
+                                        رقم الحركة @SortIndicator("Id")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("DonorName")'>
+                                        المتبرع @SortIndicator("DonorName")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("EntryType")'>
+                                        النوع @SortIndicator("EntryType")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("Amount")'>
+                                        القيمة @SortIndicator("Amount")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("PaymentMethod")'>
+                                        طريقة الدفع @SortIndicator("PaymentMethod")
+                                    </button>
+                                </th>
+                                <th>الدفتر</th>
+                                <th>الوصل</th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("EntryDate")'>
+                                        التاريخ @SortIndicator("EntryDate")
+                                    </button>
+                                </th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("Status")'>
+                                        الحالة @SortIndicator("Status")
+                                    </button>
+                                </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in PagedFinancialRows)
+                        {
+                            <tr class="@(item.Status == FinancialEntryStatus.Reversed ? "reversed-row" : null)">
+                                <td>@item.Id</td>
+                                <td><strong>@item.DonorName</strong></td>
+                                <td>@GetEntryTypeName(item.EntryType)</td>
+                                <td>@item.Amount.ToString("0.000")</td>
+                                <td>@GetPaymentMethodName(item.PaymentMethod)</td>
+                                <td>@(item.BookNumber ?? "—")</td>
+                                <td>@(item.ReceiptNumber ?? "—")</td>
+                                <td>@item.EntryDate.ToString("yyyy/MM/dd")</td>
+                                <td>
+                                    @(item.Status == FinancialEntryStatus.Confirmed
+                                        ? "مؤكدة"
+                                        : "ملغاة")
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+    @if (!isLoading && ResultCount > 0)
+{
+    <nav class="pagination-bar no-print" aria-label="صفحات التقرير">
+        <div class="page-size">
+            <label for="report-page-size">عدد السجلات:</label>
+
+            <select id="report-page-size"
+                    value="@pageSize"
+                    @onchange="PageSizeChanged">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+            </select>
+        </div>
+
+        <div class="page-information">
+            عرض @FirstVisibleRow إلى @LastVisibleRow
+            من أصل @ResultCount سجل
+        </div>
+
+        <div class="page-buttons">
+            <button @onclick="PreviousPage"
+                    disabled="@(currentPage <= 1)">
+                السابق
+            </button>
+
+            @foreach (var pageNumber  in VisiblePageNumbers)
+            {
+                        <button class="@(pageNumber == currentPage ? "active" : null)"
+                                @onclick="() => GoToPage(pageNumber)">
+                            @pageNumber
+                </button>
+            }
+
+            <button @onclick="NextPage"
+                    disabled="@(currentPage >= TotalPages)">
+                التالي
+            </button>
+        </div>
+    </nav>
+}
+    </div>
+</div>
+
+@code {
+    private IReadOnlyList<GeneralSponsorshipReportDto> generalRows = [];
+    private IReadOnlyList<DetailedSponsorshipReportDto> detailedRows = [];
+    private IReadOnlyList<FinancialEntryDto> financialRows = [];
+
+    private ReportMode mode = ReportMode.General;
+    private string searchTerm = string.Empty;
+    private string? errorMessage;
+
+    private DateOnly selectedDate =
+        DateOnly.FromDateTime(DateTime.Today);
+
+    private DateOnly? fromDate;
+    private DateOnly? toDate;
+
+    private bool includeHistory;
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private string sortColumn = "FileNumber";
+    private bool sortAscending = true;
+
+    private int TotalPages =>
+        Math.Max(1, (int)Math.Ceiling(
+            ResultCount / (double)pageSize));
+
+    private int FirstVisibleRow =>
+        ResultCount == 0
+            ? 0
+            : ((currentPage - 1) * pageSize) + 1;
+
+    private int LastVisibleRow =>
+        Math.Min(currentPage * pageSize, ResultCount);
+
+    private IEnumerable<int> VisiblePageNumbers
+    {
+        get
+        {
+            var first = Math.Max(1, currentPage - 2);
+            var last = Math.Min(TotalPages, first + 4);
+
+            first = Math.Max(1, last - 4);
+
+            return Enumerable.Range(
+                first,
+                last - first + 1);
+        }
+    }
+
+    private IEnumerable<GeneralSponsorshipReportDto>
+    PagedGeneralRows =>
+        SortGeneralRows()
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize);
+
+    private IEnumerable<DetailedSponsorshipReportDto>
+        PagedDetailedRows =>
+            SortDetailedRows()
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize);
+
+    private IEnumerable<FinancialEntryDto>
+        PagedFinancialRows =>
+            SortFinancialRows()
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize);
+
+    private string ReportTitle => mode switch
+    {
+        ReportMode.General => "التقرير العام للكفالات",
+        ReportMode.Detailed => "التقرير المفصل للكفالات",
+        ReportMode.Expired => "كشف انتهاء الكفالات",
+        ReportMode.Financial => "تقرير الإدخال المالي",
+        ReportMode.Donations => "كشف التبرعات",
+        _ => "التقرير"
+    };
+
+    private int ResultCount => mode switch
+    {
+        ReportMode.Detailed => detailedRows.Count,
+        ReportMode.Financial or ReportMode.Donations =>
+            financialRows.Count,
+        _ => generalRows.Count
+    };
+
+    private decimal ConfirmedTotal => financialRows
+        .Where(item =>
+            item.Status == FinancialEntryStatus.Confirmed)
+        .Sum(item => item.Amount);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task ChangeModeAsync(ReportMode newMode)
+    {
+        mode = newMode;
+        searchTerm = string.Empty;
+        errorMessage = null;
+
+        ResetPagingAndSorting();
+
+        await LoadAsync();
+    }
+
+    private async Task SearchChanged(ChangeEventArgs args)
+    {
+        searchTerm = args.Value?.ToString() ?? string.Empty;
+        currentPage = 1;
+
+        await LoadAsync();
+    }
+
+    private async Task HistoryChanged(ChangeEventArgs args)
+    {
+        includeHistory =
+            args.Value is bool value && value;
+
+        currentPage = 1;
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            generalRows = [];
+            detailedRows = [];
+            financialRows = [];
+
+            switch (mode)
+            {
+                case ReportMode.General:
+                    generalRows =
+                        await ReportService.GetGeneralReportAsync(
+                            searchTerm);
+                    break;
+
+                case ReportMode.Detailed:
+                    detailedRows =
+                        await ReportService.GetDetailedReportAsync(
+                            searchTerm,
+                            includeHistory);
+                    break;
+
+                case ReportMode.Expired:
+                    generalRows =
+                        await ReportService.GetExpiredSponsorshipsAsync(
+                            selectedDate);
+                    break;
+
+                case ReportMode.Financial:
+                    financialRows =
+                        await ReportService.GetFinancialEntriesAsync(
+                            fromDate,
+                            toDate,
+                            searchTerm);
+                    break;
+
+                case ReportMode.Donations:
+                    financialRows =
+                        await ReportService.GetDonationsAsync(
+                            fromDate,
+                            toDate,
+                            searchTerm);
+                    break;
+            }
+            currentPage = Math.Clamp(
+            currentPage,
+            1,
+            TotalPages);
+        }
+
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PrintAsync()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private string TabClass(ReportMode tab) =>
+        mode == tab ? "active" : string.Empty;
+
+    private static string EndDateClass(DateOnly date)
+    {
+        return date < DateOnly.FromDateTime(DateTime.Today)
+            ? "expired-date"
+            : string.Empty;
+    }
+
+    private static string GetSponsorshipStatus(
+        SponsorshipStatus status) => status switch
+        {
+            SponsorshipStatus.Active => "فعالة",
+            SponsorshipStatus.Ended => "منتهية",
+            SponsorshipStatus.Replaced => "مستبدلة",
+            SponsorshipStatus.Cancelled => "ملغاة",
+            _ => status.ToString()
+        };
+
+    private static string GetEntryTypeName(
+        FinancialEntryType type) => type switch
+        {
+            FinancialEntryType.NewOrphan => "يتيم جديد",
+            FinancialEntryType.Zakat => "زكاة",
+            FinancialEntryType.Charity => "صدقة",
+            FinancialEntryType.Other => "أخرى",
+            FinancialEntryType.OrphanSponsorship => "كفالة يتيم",
+            FinancialEntryType.SponsorshipDeliveredByHand =>
+                "كفالة سلمت باليد",
+            _ => type.ToString()
+        };
+
+    private static string GetPaymentMethodName(
+        PaymentMethod method) => method switch
+        {
+            PaymentMethod.Cash => "نقدي",
+            PaymentMethod.Clearing => "مقاصة",
+            PaymentMethod.ByHand => "باليد",
+            PaymentMethod.BankTransfer => "تحويل بنكي",
+            _ => method.ToString()
+        };
+
+    private enum ReportMode
+    {
+        General,
+        Detailed,
+        Expired,
+        Financial,
+        Donations
+    }
+    private async Task ExportExcelAsync()
+    {
+        errorMessage = null;
+
+        try
+        {
+            byte[] fileBytes = mode switch
+            {
+                ReportMode.General or ReportMode.Expired =>
+                    ExcelExportService.ExportGeneral(
+                        generalRows,
+                        ReportTitle),
+
+                ReportMode.Detailed =>
+                    ExcelExportService.ExportDetailed(
+                        detailedRows),
+
+                ReportMode.Financial or ReportMode.Donations =>
+                    ExcelExportService.ExportFinancial(
+                        financialRows,
+                        ReportTitle),
+
+                _ => throw new InvalidOperationException(
+                    "نوع التقرير غير مدعوم.")
+            };
+
+            var fileName =
+                $"GreenCrescent_{mode}_{DateTime.Now:yyyyMMdd_HHmm}.xlsx";
+
+            await JS.InvokeVoidAsync(
+                "downloadBase64File",
+                fileName,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                Convert.ToBase64String(fileBytes));
+        }
+        catch (Exception exception)
+        {
+            errorMessage =
+                $"تعذر تصدير التقرير: {exception.Message}";
+        }
+    }
+
+    private IEnumerable<GeneralSponsorshipReportDto>
+    SortGeneralRows()
+    {
+        return (sortColumn, sortAscending) switch
+        {
+            ("FileNumber", true) =>
+                generalRows.OrderBy(x => x.FileNumber),
+            ("FileNumber", false) =>
+                generalRows.OrderByDescending(x => x.FileNumber),
+
+            ("BeneficiaryName", true) =>
+                generalRows.OrderBy(x => x.BeneficiaryName),
+            ("BeneficiaryName", false) =>
+                generalRows.OrderByDescending(x => x.BeneficiaryName),
+
+            ("SponsorName", true) =>
+                generalRows.OrderBy(x => x.SponsorName),
+            ("SponsorName", false) =>
+                generalRows.OrderByDescending(x => x.SponsorName),
+
+            ("ResponsibleSheikhName", true) =>
+                generalRows.OrderBy(x => x.ResponsibleSheikhName),
+            ("ResponsibleSheikhName", false) =>
+                generalRows.OrderByDescending(x => x.ResponsibleSheikhName),
+
+            ("MonthlyAmount", true) =>
+                generalRows.OrderBy(x => x.MonthlyAmount),
+            ("MonthlyAmount", false) =>
+                generalRows.OrderByDescending(x => x.MonthlyAmount),
+
+            ("StartDate", true) =>
+                generalRows.OrderBy(x => x.StartDate),
+            ("StartDate", false) =>
+                generalRows.OrderByDescending(x => x.StartDate),
+
+            ("EndDate", true) =>
+                generalRows.OrderBy(x => x.EndDate),
+            ("EndDate", false) =>
+                generalRows.OrderByDescending(x => x.EndDate),
+
+            _ => generalRows.OrderBy(x => x.FileNumber)
+        };
+    }
+
+    private IEnumerable<DetailedSponsorshipReportDto>
+    SortDetailedRows()
+    {
+        return (sortColumn, sortAscending) switch
+        {
+            ("FileNumber", true) =>
+                detailedRows.OrderBy(x => x.FileNumber),
+            ("FileNumber", false) =>
+                detailedRows.OrderByDescending(x => x.FileNumber),
+
+            ("SponsorName", true) =>
+                detailedRows.OrderBy(x => x.SponsorName),
+            ("SponsorName", false) =>
+                detailedRows.OrderByDescending(x => x.SponsorName),
+
+            ("ResponsibleSheikhName", true) =>
+                detailedRows.OrderBy(x => x.ResponsibleSheikhName),
+            ("ResponsibleSheikhName", false) =>
+                detailedRows.OrderByDescending(x => x.ResponsibleSheikhName),
+
+            ("BeneficiaryName", true) =>
+                detailedRows.OrderBy(x => x.BeneficiaryName),
+            ("BeneficiaryName", false) =>
+                detailedRows.OrderByDescending(x => x.BeneficiaryName),
+
+            ("MonthlyAmount", true) =>
+                detailedRows.OrderBy(x => x.MonthlyAmount),
+            ("MonthlyAmount", false) =>
+                detailedRows.OrderByDescending(x => x.MonthlyAmount),
+
+            ("StartDate", true) =>
+                detailedRows.OrderBy(x => x.StartDate),
+            ("StartDate", false) =>
+                detailedRows.OrderByDescending(x => x.StartDate),
+
+            ("EndDate", true) =>
+                detailedRows.OrderBy(x => x.EndDate),
+            ("EndDate", false) =>
+                detailedRows.OrderByDescending(x => x.EndDate),
+
+            ("Status", true) =>
+                detailedRows.OrderBy(x => x.Status),
+            ("Status", false) =>
+                detailedRows.OrderByDescending(x => x.Status),
+
+            ("FirstPreviousBeneficiaryName", true) =>
+                detailedRows.OrderBy(x =>
+                    x.FirstPreviousBeneficiaryName ?? string.Empty),
+            ("FirstPreviousBeneficiaryName", false) =>
+                detailedRows.OrderByDescending(x =>
+                    x.FirstPreviousBeneficiaryName ?? string.Empty),
+
+            ("SecondPreviousBeneficiaryName", true) =>
+                detailedRows.OrderBy(x =>
+                    x.SecondPreviousBeneficiaryName ?? string.Empty),
+            ("SecondPreviousBeneficiaryName", false) =>
+                detailedRows.OrderByDescending(x =>
+                    x.SecondPreviousBeneficiaryName ?? string.Empty),
+
+            ("ThirdPreviousBeneficiaryName", true) =>
+                detailedRows.OrderBy(x =>
+                    x.ThirdPreviousBeneficiaryName ?? string.Empty),
+            ("ThirdPreviousBeneficiaryName", false) =>
+                detailedRows.OrderByDescending(x =>
+                    x.ThirdPreviousBeneficiaryName ?? string.Empty),
+
+            _ => detailedRows.OrderBy(x => x.FileNumber)
+        };
+    }
+
+    private IEnumerable<FinancialEntryDto>
+    SortFinancialRows()
+    {
+        return (sortColumn, sortAscending) switch
+        {
+            ("Id", true) =>
+                financialRows.OrderBy(x => x.Id),
+            ("Id", false) =>
+                financialRows.OrderByDescending(x => x.Id),
+
+            ("DonorName", true) =>
+                financialRows.OrderBy(x => x.DonorName),
+            ("DonorName", false) =>
+                financialRows.OrderByDescending(x => x.DonorName),
+
+            ("EntryType", true) =>
+                financialRows.OrderBy(x => x.EntryType),
+            ("EntryType", false) =>
+                financialRows.OrderByDescending(x => x.EntryType),
+
+            ("Amount", true) =>
+                financialRows.OrderBy(x => x.Amount),
+            ("Amount", false) =>
+                financialRows.OrderByDescending(x => x.Amount),
+
+            ("PaymentMethod", true) =>
+                financialRows.OrderBy(x => x.PaymentMethod),
+            ("PaymentMethod", false) =>
+                financialRows.OrderByDescending(x => x.PaymentMethod),
+
+            ("EntryDate", true) =>
+                financialRows.OrderBy(x => x.EntryDate),
+            ("EntryDate", false) =>
+                financialRows.OrderByDescending(x => x.EntryDate),
+
+            ("Status", true) =>
+                financialRows.OrderBy(x => x.Status),
+            ("Status", false) =>
+                financialRows.OrderByDescending(x => x.Status),
+
+            _ => financialRows
+                .OrderByDescending(x => x.EntryDate)
+                .ThenByDescending(x => x.Id)
+        };
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+        {
+            sortAscending = !sortAscending;
+        }
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+
+        currentPage = 1;
+    }
+
+    private string SortIndicator(string column)
+    {
+        if (sortColumn != column)
+        {
+            return string.Empty;
+        }
+
+        return sortAscending ? "▲" : "▼";
+    }
+
+    private void PreviousPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < TotalPages)
+        {
+            currentPage++;
+        }
+    }
+
+    private void GoToPage(int page)
+    {
+        currentPage = Math.Clamp(page, 1, TotalPages);
+    }
+
+    private void PageSizeChanged(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var value) &&
+            value is 10 or 25 or 50)
+        {
+            pageSize = value;
+            currentPage = 1;
+        }
+    }
+
+    private void ResetPagingAndSorting()
+    {
+        currentPage = 1;
+
+        if (mode is ReportMode.Financial or ReportMode.Donations)
+        {
+            sortColumn = "EntryDate";
+            sortAscending = false;
+        }
+        else if (mode == ReportMode.Expired)
+        {
+            sortColumn = "EndDate";
+            sortAscending = true;
+        }
+        else
+        {
+            sortColumn = "FileNumber";
+            sortAscending = true;
+        }
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        currentPage = 1;
+        await LoadAsync();
+    }
+}

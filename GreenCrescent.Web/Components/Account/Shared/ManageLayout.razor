@@ -1,0 +1,20 @@
+﻿@inherits LayoutComponentBase
+@layout GreenCrescent.Web.Components.Layout.MainLayout
+
+<div class="account-settings-page" dir="rtl">
+    <header class="account-settings-header">
+        <span>الحساب والأمان</span>
+        <h1>إعدادات الحساب</h1>
+        <p>تحديث بيانات الحساب وكلمة المرور.</p>
+    </header>
+
+    <div class="account-settings-grid">
+        <aside class="account-settings-nav">
+            <ManageNavMenu />
+        </aside>
+
+        <main class="account-settings-content">
+            @Body
+        </main>
+    </div>
+</div>

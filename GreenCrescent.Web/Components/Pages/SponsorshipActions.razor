@@ -1,0 +1,533 @@
+﻿@page "/sponsorship-actions"
+@rendermode InteractiveServer
+@using GreenCrescent.Application.Features.Sponsors
+@using GreenCrescent.Application.Features.Beneficiaries
+@using GreenCrescent.Application.Features.Sponsorships
+@using GreenCrescent.Application.Features.SponsorshipActions
+@using GreenCrescent.Core.Enums
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Staff")]
+@inject ISponsorshipService SponsorshipService
+@inject ISponsorService SponsorService
+@inject IBeneficiaryService BeneficiaryService
+@inject ISponsorshipActionService ActionService
+
+<PageTitle>إجراءات الكفالات</PageTitle>
+
+<div class="sponsors-page" dir="rtl">
+    <header class="page-header">
+        <div>
+            <span class="section-label">إدارة الكفالات</span>
+            <h1>الإجراءات</h1>
+            <p>استبدال الكافل أو المكفول وتغيير قيمة الكفالة.</p>
+        </div>
+    </header>
+
+    @if (message is not null)
+    {
+        <div class="alert success-alert">@message</div>
+    }
+
+    @if (errorMessage is not null)
+    {
+        <div class="alert error-alert">@errorMessage</div>
+    }
+
+    <section class="list-card selection-card">
+        <div class="toolbar">
+            <div class="search-box">
+                <span>⌕</span>
+                <input value="@sponsorshipSearch"
+                       @oninput="SearchSponsorshipChanged"
+                       placeholder="ابحث باسم الكافل أو المكفول أو رقم الملف..." />
+            </div>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="empty-state">جاري تحميل الكفالات...</div>
+        }
+        else if (sponsorships.Count == 0)
+        {
+            <div class="empty-state">
+                لا توجد كفالات فعالة مطابقة.
+            </div>
+        }
+        else
+        {
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>رقم الملف</th>
+                            <th>المكفول</th>
+                            <th>الكافل</th>
+                            <th>القيمة</th>
+                            <th>تاريخ النهاية</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var item in sponsorships)
+                        {
+                            <tr class="@(selectedSponsorship?.Id == item.Id ? "selected-row" : null)"
+                                @onclick="() => SelectSponsorship(item)">
+                                <td>@item.FileNumber</td>
+                                <td><strong>@item.BeneficiaryName</strong></td>
+                                <td>@item.SponsorName</td>
+                                <td>@item.MonthlyAmount.ToString("0.000") د.أ</td>
+                                <td>@item.EndDate.ToString("yyyy/MM/dd")</td>
+                                <td>
+                                    <button class="edit-button" type="button">
+                                        اختيار
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    @if (selectedSponsorship is not null)
+    {
+        <section class="selected-sponsorship">
+            <div>
+                <span>المكفول</span>
+                <strong>
+                    @selectedSponsorship.BeneficiaryName
+                    — ملف @selectedSponsorship.FileNumber
+                </strong>
+            </div>
+
+            <div>
+                <span>الكافل الحالي</span>
+                <strong>@selectedSponsorship.SponsorName</strong>
+            </div>
+
+            <div>
+                <span>قيمة الكفالة</span>
+                <strong>
+                    @selectedSponsorship.MonthlyAmount.ToString("0.000")
+                    د.أ
+                </strong>
+            </div>
+
+            <div>
+                <span>نهاية الكفالة</span>
+                <strong>
+                    @selectedSponsorship.EndDate.ToString("yyyy/MM/dd")
+                </strong>
+            </div>
+        </section>
+
+        <section class="action-card">
+            <div class="action-tabs">
+                <button class="@TabClass(ActionMode.ReplaceSponsor)"
+                        @onclick="() => SelectMode(ActionMode.ReplaceSponsor)">
+                    استبدال الكافل
+                </button>
+
+                <button class="@TabClass(ActionMode.ReplaceBeneficiary)"
+                        @onclick="() => SelectMode(ActionMode.ReplaceBeneficiary)">
+                    استبدال المكفول
+                </button>
+
+                <button class="@TabClass(ActionMode.ChangeAmount)"
+                        @onclick="() => SelectMode(ActionMode.ChangeAmount)">
+                    تغيير قيمة الكفالة
+                </button>
+            </div>
+
+            <div class="action-content">
+                @if (mode == ActionMode.ReplaceSponsor)
+                {
+                    <h2>استبدال الكافل</h2>
+                    <p class="action-description">
+                        سيبقى المكفول وقيمة الكفالة وتاريخ انتهائها كما هي.
+                    </p>
+
+                    <div class="form-field autocomplete">
+                        <label>الكافل الجديد <span>*</span></label>
+
+                        <input value="@replacementSearch"
+                               @oninput="ReplacementSponsorChanged"
+                               placeholder="ابحث باسم الكافل أو الهاتف" />
+
+                        @if (sponsorResults.Count > 0)
+                        {
+                            <div class="search-results">
+                                @foreach (var sponsor in sponsorResults)
+                                {
+                                    <button type="button"
+                                            @onclick="() => SelectReplacementSponsor(sponsor)">
+                                        <strong>@sponsor.Name</strong>
+                                        <small>@(sponsor.PhoneNumber ?? "دون هاتف")</small>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedSponsor is not null)
+                    {
+                        <div class="selected-record">
+                            <span>الكافل الجديد</span>
+                            <strong>@selectedSponsor.Name</strong>
+                        </div>
+                    }
+                }
+                else if (mode == ActionMode.ReplaceBeneficiary)
+                {
+                    <h2>استبدال المكفول</h2>
+                    <p class="action-description">
+                        سيرث المكفول الجديد قيمة الكفالة والمدة المتبقية.
+                    </p>
+
+                    <div class="form-field autocomplete">
+                        <label>المكفول الجديد <span>*</span></label>
+
+                        <input value="@replacementSearch"
+                               @oninput="ReplacementBeneficiaryChanged"
+                               placeholder="ابحث بالاسم أو رقم الملف" />
+
+                        @if (beneficiaryResults.Count > 0)
+                        {
+                            <div class="search-results">
+                                @foreach (var beneficiary in beneficiaryResults)
+                                {
+                                    <button type="button"
+                                            @onclick="() => SelectReplacementBeneficiary(beneficiary)">
+                                        <strong>@beneficiary.Name</strong>
+                                        <small>ملف رقم @beneficiary.FileNumber</small>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedBeneficiary is not null)
+                    {
+                        <div class="selected-record">
+                            <span>المكفول الجديد</span>
+                            <strong>@selectedBeneficiary.Name</strong>
+                            <small>ملف رقم @selectedBeneficiary.FileNumber</small>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <h2>تغيير قيمة الكفالة</h2>
+                    <p class="action-description">
+                        ستستخدم القيمة الجديدة في الدفعات القادمة، ولن يتغير تاريخ النهاية الحالي.
+                    </p>
+
+                    <div class="amount-comparison">
+                        <div>
+                            <span>القيمة الحالية</span>
+                            <strong>
+                                @selectedSponsorship.MonthlyAmount.ToString("0.000")
+                                د.أ
+                            </strong>
+                        </div>
+
+                        <div class="form-field">
+                            <label>القيمة الجديدة <span>*</span></label>
+                            <InputNumber @bind-Value="newMonthlyAmount"
+                                         step="0.001" />
+                        </div>
+                    </div>
+                }
+
+                <div class="common-fields">
+                    <div class="form-field">
+                        <label>تاريخ تنفيذ الإجراء <span>*</span></label>
+                        <InputDate @bind-Value="effectiveDate" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>سبب الإجراء <span>*</span></label>
+                        <InputTextArea @bind-Value="reason"
+                                       placeholder="اكتب سبب الإجراء بوضوح..." />
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button class="primary-button"
+                            disabled="@isSaving"
+                            @onclick="ExecuteAsync">
+                        @(isSaving ? "جاري التنفيذ..." : "تأكيد الإجراء")
+                    </button>
+
+                    <button class="cancel-button"
+                            @onclick="ClearSelection">
+                        إلغاء
+                    </button>
+                </div>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<SponsorshipDto> sponsorships = [];
+    private IReadOnlyList<SponsorDto> sponsorResults = [];
+    private IReadOnlyList<BeneficiaryDto> beneficiaryResults = [];
+
+    private SponsorshipDto? selectedSponsorship;
+    private SponsorDto? selectedSponsor;
+    private BeneficiaryDto? selectedBeneficiary;
+
+    private ActionMode mode = ActionMode.ReplaceSponsor;
+
+    private string sponsorshipSearch = string.Empty;
+    private string replacementSearch = string.Empty;
+    private string reason = string.Empty;
+
+    private decimal newMonthlyAmount;
+    private DateOnly effectiveDate =
+        DateOnly.FromDateTime(DateTime.Today);
+
+    private string? message;
+    private string? errorMessage;
+
+    private bool isLoading = true;
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSponsorshipsAsync();
+    }
+
+    private async Task LoadSponsorshipsAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            sponsorships = await SponsorshipService.SearchAsync(
+                sponsorshipSearch,
+                activeOnly: true);
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SearchSponsorshipChanged(ChangeEventArgs args)
+    {
+        sponsorshipSearch =
+            args.Value?.ToString() ?? string.Empty;
+
+        await LoadSponsorshipsAsync();
+    }
+
+    private void SelectSponsorship(SponsorshipDto item)
+    {
+        selectedSponsorship = item;
+        mode = ActionMode.ReplaceSponsor;
+        ResetActionFields();
+        ClearMessages();
+    }
+
+    private void SelectMode(ActionMode selectedMode)
+    {
+        mode = selectedMode;
+        ResetActionFields();
+        ClearMessages();
+
+        if (mode == ActionMode.ChangeAmount &&
+            selectedSponsorship is not null)
+        {
+            newMonthlyAmount =
+                selectedSponsorship.MonthlyAmount;
+        }
+    }
+
+    private async Task ReplacementSponsorChanged(ChangeEventArgs args)
+    {
+        replacementSearch =
+            args.Value?.ToString() ?? string.Empty;
+
+        selectedSponsor = null;
+
+        if (string.IsNullOrWhiteSpace(replacementSearch))
+        {
+            sponsorResults = [];
+            return;
+        }
+
+        var results = await SponsorService.SearchAsync(
+            replacementSearch);
+
+        sponsorResults = results
+            .Where(item =>
+                item.Id != selectedSponsorship?.SponsorId)
+            .ToList();
+    }
+
+    private async Task ReplacementBeneficiaryChanged(
+        ChangeEventArgs args)
+    {
+        replacementSearch =
+            args.Value?.ToString() ?? string.Empty;
+
+        selectedBeneficiary = null;
+
+        if (string.IsNullOrWhiteSpace(replacementSearch))
+        {
+            beneficiaryResults = [];
+            return;
+        }
+
+        var results = await BeneficiaryService.SearchAsync(
+            replacementSearch);
+
+        beneficiaryResults = results
+            .Where(item =>
+                item.Status ==
+                BeneficiaryStatus.WaitingForSponsor &&
+                !item.ActiveSponsorshipId.HasValue)
+            .ToList();
+    }
+
+    private void SelectReplacementSponsor(SponsorDto sponsor)
+    {
+        selectedSponsor = sponsor;
+        replacementSearch = sponsor.Name;
+        sponsorResults = [];
+    }
+
+    private void SelectReplacementBeneficiary(
+        BeneficiaryDto beneficiary)
+    {
+        selectedBeneficiary = beneficiary;
+        replacementSearch =
+            $"{beneficiary.FileNumber} - {beneficiary.Name}";
+        beneficiaryResults = [];
+    }
+
+    private async Task ExecuteAsync()
+    {
+        ClearMessages();
+
+        if (selectedSponsorship is null)
+        {
+            errorMessage = "يجب اختيار الكفالة.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            errorMessage = "سبب الإجراء مطلوب.";
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            switch (mode)
+            {
+                case ActionMode.ReplaceSponsor:
+                    if (selectedSponsor is null)
+                    {
+                        throw new InvalidOperationException(
+                            "يجب اختيار الكافل الجديد.");
+                    }
+
+                    await ActionService.ReplaceSponsorAsync(
+                        new ReplaceSponsorRequest(
+                            selectedSponsorship.Id,
+                            selectedSponsor.Id,
+                            effectiveDate,
+                            reason));
+
+                    message = "تم استبدال الكافل بنجاح.";
+                    break;
+
+                case ActionMode.ReplaceBeneficiary:
+                    if (selectedBeneficiary is null)
+                    {
+                        throw new InvalidOperationException(
+                            "يجب اختيار المكفول الجديد.");
+                    }
+
+                    await ActionService.ReplaceBeneficiaryAsync(
+                        new ReplaceBeneficiaryRequest(
+                            selectedSponsorship.Id,
+                            selectedBeneficiary.Id,
+                            effectiveDate,
+                            reason));
+
+                    message = "تم استبدال المكفول بنجاح.";
+                    break;
+
+                case ActionMode.ChangeAmount:
+                    await ActionService.ChangeMonthlyAmountAsync(
+                        new ChangeMonthlyAmountRequest(
+                            selectedSponsorship.Id,
+                            newMonthlyAmount,
+                            effectiveDate,
+                            reason));
+
+                    message = "تم تغيير قيمة الكفالة بنجاح.";
+                    break;
+            }
+
+            selectedSponsorship = null;
+            ResetActionFields();
+            await LoadSponsorshipsAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ResetActionFields()
+    {
+        selectedSponsor = null;
+        selectedBeneficiary = null;
+        sponsorResults = [];
+        beneficiaryResults = [];
+        replacementSearch = string.Empty;
+        reason = string.Empty;
+        newMonthlyAmount =
+            selectedSponsorship?.MonthlyAmount ?? 0;
+        effectiveDate =
+            DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    private void ClearSelection()
+    {
+        selectedSponsorship = null;
+        ResetActionFields();
+        ClearMessages();
+    }
+
+    private void ClearMessages()
+    {
+        message = null;
+        errorMessage = null;
+    }
+
+    private string TabClass(ActionMode tab)
+    {
+        return mode == tab ? "active" : string.Empty;
+    }
+
+    private enum ActionMode
+    {
+        ReplaceSponsor,
+        ReplaceBeneficiary,
+        ChangeAmount
+    }
+}

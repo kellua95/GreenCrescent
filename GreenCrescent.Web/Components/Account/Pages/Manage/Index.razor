@@ -1,0 +1,135 @@
+﻿@page "/Account/Manage"
+
+@using System.ComponentModel.DataAnnotations
+@using GreenCrescent.Infrastructure.Identity
+@using Microsoft.AspNetCore.Identity
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject IdentityRedirectManager RedirectManager
+
+<PageTitle>بيانات الحساب</PageTitle>
+
+<h2 class="account-page-title">بيانات الحساب</h2>
+
+<p class="account-page-description">
+    مراجعة البريد الإلكتروني وتحديث رقم الهاتف.
+</p>
+
+<StatusMessage />
+
+<EditForm Model="@Input"
+          FormName="profile"
+          OnValidSubmit="OnValidSubmitAsync"
+          method="post"
+          class="app-form account-form">
+
+    <DataAnnotationsValidator />
+
+    <div class="form-field">
+        <label>البريد الإلكتروني</label>
+
+        <input type="text"
+               value="@username"
+               class="readonly-field"
+               dir="ltr"
+               disabled />
+    </div>
+
+    <div class="form-field">
+        <label>رقم الهاتف</label>
+
+        <InputText @bind-Value="Input.PhoneNumber"
+                   type="tel"
+                   inputmode="tel"
+                   autocomplete="tel"
+                   dir="ltr"
+                   placeholder="0790000000" />
+
+        <ValidationMessage For="() => Input.PhoneNumber" />
+    </div>
+
+    <div class="form-actions">
+        <button type="submit"
+                class="primary-button">
+            حفظ التعديلات
+        </button>
+    </div>
+</EditForm>
+
+@code {
+    private ApplicationUser? user;
+    private string? username;
+    private string? phoneNumber;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+
+        user = await UserManager.GetUserAsync(HttpContext.User);
+
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(
+                UserManager,
+                HttpContext);
+
+            return;
+        }
+
+        username = await UserManager.GetUserNameAsync(user);
+        phoneNumber = await UserManager.GetPhoneNumberAsync(user);
+
+        Input.PhoneNumber ??= phoneNumber;
+    }
+
+    private async Task OnValidSubmitAsync()
+    {
+        if (user is null)
+        {
+            RedirectManager.RedirectToInvalidUser(
+                UserManager,
+                HttpContext);
+
+            return;
+        }
+
+        if (Input.PhoneNumber != phoneNumber)
+        {
+            var result = await UserManager.SetPhoneNumberAsync(
+                user,
+                Input.PhoneNumber);
+
+            if (!result.Succeeded)
+            {
+                RedirectManager.RedirectToCurrentPageWithStatus(
+                    "Error: تعذر تحديث رقم الهاتف.",
+                    HttpContext);
+
+                return;
+            }
+        }
+
+        await SignInManager.RefreshSignInAsync(user);
+
+        RedirectManager.RedirectToCurrentPageWithStatus(
+            "تم تحديث بيانات الحساب بنجاح.",
+            HttpContext);
+    }
+
+    private sealed class InputModel
+    {
+        [Phone(ErrorMessage = "رقم الهاتف غير صالح.")]
+        [StringLength(
+            30,
+            ErrorMessage =
+                "رقم الهاتف يجب ألا يتجاوز 30 حرفًا.")]
+        public string? PhoneNumber { get; set; }
+    }
+}

@@ -1,0 +1,142 @@
+﻿@implements IDisposable
+@inject NavigationManager NavigationManager
+
+<div class="nav-brand">
+    <a href="/">
+        <span class="brand-logo">☾</span>
+
+        <span class="brand-content">
+            <strong>الهلال الأخضر</strong>
+            <small>إدارة الكفالات</small>
+        </span>
+
+    </a>
+</div>
+
+<div class="nav-scrollable">
+    <nav class="nav-menu">
+        <AuthorizeView>
+            <Authorized>
+                <NavLink class="nav-link"
+                         href=""
+                         Match="NavLinkMatch.All">
+                    <span class="nav-symbol">⌂</span>
+                    <span>لوحة التحكم</span>
+                </NavLink>
+
+                <div class="nav-section-title">
+                    إدارة الكفالات
+                </div>
+
+                <NavLink class="nav-link" href="sponsors">
+                    <span class="nav-symbol">ك</span>
+                    <span>الكفلاء</span>
+                </NavLink>
+
+                <NavLink class="nav-link" href="beneficiaries">
+                    <span class="nav-symbol">م</span>
+                    <span>المكفولون</span>
+                </NavLink>
+
+                <NavLink class="nav-link" href="sponsorships">
+                    <span class="nav-symbol">ف</span>
+                    <span>الكفالات</span>
+                </NavLink>
+
+                <NavLink class="nav-link" href="sponsorship-actions">
+                    <span class="nav-symbol">إ</span>
+                    <span>إجراءات الكفالات</span>
+                </NavLink>
+
+                <NavLink class="nav-link" href="responsible-sheikhs">
+                    <span class="nav-symbol">ع</span>
+                    <span>المعرّفون</span>
+                </NavLink>
+
+                <div class="nav-section-title">
+                    الإدارة المالية
+                </div>
+
+                <NavLink class="nav-link" href="financial-entry">
+                    <span class="nav-symbol">د</span>
+                    <span>إدخال مالي</span>
+                </NavLink>
+
+                <NavLink class="nav-link" href="reports">
+                    <span class="nav-symbol">ت</span>
+                    <span>التقارير</span>
+                </NavLink>
+
+                <div class="nav-section-title">
+                    الحساب
+                </div>
+
+                <NavLink class="nav-link" href="Account/Manage">
+                    <span class="nav-symbol">ح</span>
+                    <span>إعدادات الحساب</span>
+                </NavLink>
+
+                <AuthorizeView Roles="Admin"
+                               Context="adminAuthorization">
+                    <Authorized>
+                        <NavLink class="nav-link"
+                                 href="Account/Register">
+                            <span class="nav-symbol">+</span>
+                            <span>إضافة مستخدم</span>
+                        </NavLink>
+                    </Authorized>
+                </AuthorizeView>
+
+                <form action="Account/Logout"
+                      method="post"
+                      class="logout-form">
+                    <AntiforgeryToken />
+
+                    <input type="hidden"
+                           name="ReturnUrl"
+                           value="@currentUrl" />
+
+                    <button type="submit"
+                            class="nav-link logout-link">
+                        <span class="nav-symbol">خ</span>
+                        <span>تسجيل الخروج</span>
+                    </button>
+                </form>
+            </Authorized>
+
+            <NotAuthorized>
+                <NavLink class="nav-link" href="Account/Login">
+                    <span class="nav-symbol">د</span>
+                    <span>تسجيل الدخول</span>
+                </NavLink>
+            </NotAuthorized>
+        </AuthorizeView>
+    </nav>
+</div>
+
+@code {
+    private string? currentUrl;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(
+            NavigationManager.Uri);
+
+        NavigationManager.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(
+        object? sender,
+        LocationChangedEventArgs eventArgs)
+    {
+        currentUrl = NavigationManager.ToBaseRelativePath(
+            eventArgs.Location);
+
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+    }
+}

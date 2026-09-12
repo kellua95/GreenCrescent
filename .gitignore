@@ -1,0 +1,47 @@
+# Build results
+bin/
+obj/
+[Bb]uild/
+[Dd]ebug/
+[Rr]elease/
+publish/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
+
+# Database and backups
+*.db
+*.db-shm
+*.db-wal
+*.backup
+*.dump
+*.sql
+
+# Secrets and production configuration
+.env
+.env.*
+appsettings.Production.json
+secrets.json
+
+# Logs
+*.log
+logs/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

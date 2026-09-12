@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="GreenCrescent.Application/GreenCrescent.Application.csproj" />
+  <Project Path="GreenCrescent.Core/GreenCrescent.Core.csproj" />
+  <Project Path="GreenCrescent.Infrastructure/GreenCrescent.Infrastructure.csproj" />
+  <Project Path="GreenCrescent.Tests/GreenCrescent.Tests.csproj" />
+  <Project Path="GreenCrescent.Web/GreenCrescent.Web.csproj" />
+</Solution>

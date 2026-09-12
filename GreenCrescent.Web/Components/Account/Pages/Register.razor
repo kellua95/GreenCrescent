@@ -1,0 +1,327 @@
+﻿@page "/Account/Register"
+
+@using System.ComponentModel.DataAnnotations
+@using GreenCrescent.Infrastructure.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+
+@attribute [Authorize(Roles = "Admin")]
+
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>إضافة مستخدم</PageTitle>
+
+<div class="user-registration-page" dir="rtl">
+    <header class="registration-header">
+        <span>إدارة النظام</span>
+        <h1>إضافة مستخدم جديد</h1>
+
+        <p>
+            إنشاء حساب جديد وتحديد صلاحياته داخل النظام.
+        </p>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(successMessage))
+    {
+        <div class="account-alert success">
+            @successMessage
+        </div>
+    }
+
+    @if (identityErrors.Count > 0)
+    {
+        <div class="account-alert error">
+            <strong>تعذر إنشاء المستخدم:</strong>
+
+            <ul>
+                @foreach (var error in identityErrors)
+                {
+                    <li>@TranslateIdentityError(error)</li>
+                }
+            </ul>
+        </div>
+    }
+
+    <section class="registration-card">
+        <EditForm Model="@Input"
+                  method="post"
+                  OnValidSubmit="RegisterUserAsync"
+                  FormName="CreateUserForm"
+                  class="app-form">
+
+            <DataAnnotationsValidator />
+
+            <div class="form-field">
+                <label>
+                    البريد الإلكتروني
+                    <span>*</span>
+                </label>
+
+                <InputText @bind-Value="Input.Email"
+                           type="email"
+                           autocomplete="off"
+                           dir="ltr"
+                           placeholder="user@example.com" />
+
+                <ValidationMessage For="() => Input.Email" />
+            </div>
+
+            <div class="form-grid">
+                <div class="form-field">
+                    <label>
+                        كلمة المرور
+                        <span>*</span>
+                    </label>
+
+                    <InputText @bind-Value="Input.Password"
+                               type="password"
+                               autocomplete="new-password"
+                               dir="ltr"
+                               placeholder="كلمة المرور" />
+
+                    <ValidationMessage For="() => Input.Password" />
+                </div>
+
+                <div class="form-field">
+                    <label>
+                        تأكيد كلمة المرور
+                        <span>*</span>
+                    </label>
+
+                    <InputText @bind-Value="Input.ConfirmPassword"
+                               type="password"
+                               autocomplete="new-password"
+                               dir="ltr"
+                               placeholder="أعد كتابة كلمة المرور" />
+
+                    <ValidationMessage For="() => Input.ConfirmPassword" />
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label>
+                    صلاحية المستخدم
+                    <span>*</span>
+                </label>
+
+                <InputRadioGroup @bind-Value="Input.Role">
+                    <div class="role-options">
+
+                    <label class="role-option">
+                        <InputRadio Value="@("Staff")" />
+
+                        <span class="role-option-content">
+                            <strong>موظف</strong>
+
+                            <small>
+                                إدارة الكفلاء والمكفولين والكفالات
+                                والإدخالات المالية.
+                            </small>
+                        </span>
+                    </label>
+
+                    <label class="role-option">
+                        <InputRadio Value="@("Viewer")" />
+
+                        <span class="role-option-content">
+                            <strong>مشاهدة فقط</strong>
+
+                            <small>
+                                يستطيع مشاهدة التقارير دون تعديل البيانات.
+                            </small>
+                        </span>
+                    </label>
+
+                    <label class="role-option">
+                        <InputRadio Value="@("Admin")" />
+
+                        <span class="role-option-content">
+                            <strong>مدير نظام</strong>
+
+                            <small>
+                                صلاحيات كاملة، بما فيها إنشاء المستخدمين.
+                            </small>
+                        </span>
+                    </label>
+                    </div>
+                </InputRadioGroup>
+                <ValidationMessage For="() => Input.Role" />
+            </div>
+            <div class="security-note">
+                <strong>تنبيه أمني</strong>
+
+                <p>
+                    سيتم تفعيل الحساب مباشرة. أعطِ بيانات الدخول
+                    لصاحب الحساب بطريقة آمنة.
+                </p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit"
+                        class="primary-button"
+                        disabled="@isSaving">
+                    @(isSaving
+                        ? "جاري إنشاء المستخدم..."
+                        : "إنشاء المستخدم")
+                </button>
+
+                <a href="/"
+                   class="cancel-button">
+                    إلغاء
+                </a>
+            </div>
+        </EditForm>
+    </section>
+</div>
+
+@code {
+    private List<IdentityError> identityErrors = [];
+    private string? successMessage;
+    private bool isSaving;
+
+    [SupplyParameterFromForm]
+    private InputModel Input { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        Input ??= new InputModel();
+    }
+
+    private async Task RegisterUserAsync()
+    {
+        identityErrors = [];
+        successMessage = null;
+        isSaving = true;
+
+        try
+        {
+            var user = new ApplicationUser
+            {
+                UserName = Input.Email.Trim(),
+                Email = Input.Email.Trim(),
+                EmailConfirmed = true
+            };
+
+            var createResult = await UserManager.CreateAsync(
+                user,
+                Input.Password);
+
+            if (!createResult.Succeeded)
+            {
+                identityErrors = createResult.Errors.ToList();
+                return;
+            }
+
+            var roleResult = await UserManager.AddToRoleAsync(
+                user,
+                Input.Role);
+
+            if (!roleResult.Succeeded)
+            {
+                await UserManager.DeleteAsync(user);
+                identityErrors = roleResult.Errors.ToList();
+                return;
+            }
+
+            successMessage =
+                $"تم إنشاء حساب {user.Email} بصلاحية " +
+                $"{GetRoleArabicName(Input.Role)} بنجاح.";
+
+            Input = new InputModel();
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string GetRoleDescription(string? role)
+    {
+        return role switch
+        {
+            "Admin" =>
+                "يمتلك صلاحية كاملة، بما فيها إنشاء المستخدمين.",
+
+            "Staff" =>
+                "يمكنه إدارة الكفلاء والمكفولين والكفالات والإدخالات المالية.",
+
+            "Viewer" =>
+                "يمكنه مشاهدة التقارير فقط دون تعديل البيانات.",
+
+            _ =>
+                "حدد الصلاحية المناسبة لمهام المستخدم."
+        };
+    }
+
+    private static string GetRoleArabicName(string role)
+    {
+        return role switch
+        {
+            "Admin" => "مدير نظام",
+            "Staff" => "موظف",
+            "Viewer" => "مشاهدة فقط",
+            _ => role
+        };
+    }
+
+    private static string TranslateIdentityError(
+        IdentityError error)
+    {
+        return error.Code switch
+        {
+            "DuplicateUserName" =>
+                "يوجد مستخدم مسجل بهذا البريد الإلكتروني.",
+
+            "DuplicateEmail" =>
+                "يوجد مستخدم مسجل بهذا البريد الإلكتروني.",
+
+            "PasswordTooShort" =>
+                "كلمة المرور أقصر من الحد المطلوب.",
+
+            "PasswordRequiresNonAlphanumeric" =>
+                "يجب أن تحتوي كلمة المرور على رمز خاص.",
+
+            "PasswordRequiresDigit" =>
+                "يجب أن تحتوي كلمة المرور على رقم.",
+
+            "PasswordRequiresUpper" =>
+                "يجب أن تحتوي كلمة المرور على حرف إنجليزي كبير.",
+
+            "PasswordRequiresLower" =>
+                "يجب أن تحتوي كلمة المرور على حرف إنجليزي صغير.",
+
+            "InvalidEmail" =>
+                "البريد الإلكتروني غير صالح.",
+
+            _ => error.Description
+        };
+    }
+
+    private sealed class InputModel
+    {
+        [Required(ErrorMessage = "البريد الإلكتروني مطلوب.")]
+        [EmailAddress(ErrorMessage = "البريد الإلكتروني غير صالح.")]
+        public string Email { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "كلمة المرور مطلوبة.")]
+        [StringLength(
+            100,
+            MinimumLength = 6,
+            ErrorMessage =
+                "كلمة المرور يجب ألا تقل عن 6 أحرف.")]
+        public string Password { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "تأكيد كلمة المرور مطلوب.")]
+        [Compare(
+            nameof(Password),
+            ErrorMessage =
+                "كلمة المرور وتأكيدها غير متطابقين.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "يجب اختيار صلاحية المستخدم.")]
+        [RegularExpression(
+            "^(Admin|Staff|Viewer)$",
+            ErrorMessage = "صلاحية المستخدم غير صحيحة.")]
+        public string Role { get; set; } = string.Empty;
+    }
+}

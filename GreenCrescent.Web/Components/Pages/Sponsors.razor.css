@@ -1,0 +1,251 @@
+﻿.sponsors-page {
+    min-height: 100%;
+    padding: 1.5rem;
+    color: var(--gc-text);
+}
+
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+    .page-header h1 {
+        margin: 0.2rem 0;
+        color: #17211b;
+        font-size: 2rem;
+        font-weight: 800;
+    }
+
+    .page-header p {
+        margin: 0;
+        color: var(--gc-muted);
+    }
+
+.section-label {
+    color: var(--gc-primary);
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.content-grid {
+    display: block;
+}
+
+.list-card {
+    overflow: hidden;
+    background: white;
+    border: 1px solid var(--gc-border);
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgb(18 57 36 / 5%);
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border-bottom: 1px solid #edf1ef;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: min(440px, 100%);
+    min-height: 48px;
+    padding: 0.6rem 0.9rem;
+    background: #f7faf8;
+    border: 1px solid var(--gc-border);
+    border-radius: 11px;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+    .search-box:focus-within {
+        background: white;
+        border-color: var(--gc-primary);
+        box-shadow: 0 0 0 3px rgb(22 131 75 / 10%);
+    }
+
+    .search-box input {
+        width: 100%;
+        color: var(--gc-text);
+        background: transparent;
+        border: 0;
+        outline: 0;
+    }
+
+.inactive-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    color: #59655e;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+    .inactive-filter input {
+        width: 17px;
+        height: 17px;
+        accent-color: var(--gc-primary);
+    }
+
+.table-container {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th,
+td {
+    padding: 0.9rem 1rem;
+    text-align: right;
+    border-bottom: 1px solid #edf1ef;
+    white-space: nowrap;
+}
+
+th {
+    color: #66726b;
+    background: #fbfcfb;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+tbody tr {
+    transition: background-color 120ms ease;
+}
+
+    tbody tr:hover {
+        background: #f8fcf9;
+    }
+
+    tbody tr:last-child td {
+        border-bottom: 0;
+    }
+
+.inactive-row {
+    opacity: 0.64;
+    background: #fafafa;
+}
+
+.count-badge,
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+}
+
+.count-badge {
+    min-width: 30px;
+    padding: 0.25rem 0.55rem;
+    color: var(--gc-primary);
+    background: #edf7f1;
+}
+
+.status-badge {
+    padding: 0.3rem 0.65rem;
+}
+
+    .status-badge.active {
+        color: #08783e;
+        background: #e7f7ee;
+    }
+
+    .status-badge.inactive {
+        color: #707070;
+        background: #f2f2f2;
+    }
+
+.actions {
+    display: flex;
+    gap: 0.45rem;
+}
+
+.edit-button,
+.toggle-button {
+    padding: 0.5rem 0.8rem;
+    background: white;
+    border-radius: 9px;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.edit-button {
+    color: var(--gc-primary);
+    border: 1px solid #9bc8af;
+}
+
+    .edit-button:hover {
+        background: #f0faf4;
+    }
+
+.toggle-button {
+    color: #8a5d08;
+    border: 1px solid #dfc98f;
+}
+
+    .toggle-button:hover {
+        background: #fffaf0;
+    }
+
+.alert {
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 10px;
+}
+
+.success-alert {
+    color: #086534;
+    background: #e8f7ee;
+    border: 1px solid #b8dec7;
+}
+
+.error-alert {
+    color: #9b241a;
+    background: #fff0ef;
+    border: 1px solid #f1c0bc;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 4rem 1rem;
+    color: #6b766f;
+}
+
+@media (max-width: 700px) {
+    .sponsors-page {
+        padding: 1rem;
+    }
+
+    .page-header,
+    .toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+        .page-header .primary-button {
+            width: 100%;
+        }
+
+    .search-box {
+        width: 100%;
+    }
+
+    th,
+    td {
+        padding: 0.75rem;
+    }
+}

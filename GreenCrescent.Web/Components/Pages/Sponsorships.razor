@@ -1,0 +1,595 @@
+﻿@page "/sponsorships"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using GreenCrescent.Application.Features.Sponsors
+@using GreenCrescent.Application.Features.Beneficiaries
+@using GreenCrescent.Application.Features.Sponsorships
+@using GreenCrescent.Core.Enums
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Staff")]
+@inject ISponsorService SponsorService
+@inject IBeneficiaryService BeneficiaryService
+@inject ISponsorshipService SponsorshipService
+@using GreenCrescent.Application.Features.ResponsibleSheikhs
+@inject IResponsibleSheikhService ResponsibleSheikhService
+
+<PageTitle>إدارة الكفالات</PageTitle>
+
+<div class="sponsors-page" dir="rtl">
+    <header class="page-header">
+        <div>
+            <span class="section-label">إدارة الكفالات</span>
+            <h1>الكفالات</h1>
+            <p>إنشاء كفالة جديدة ومتابعة الكفالات الفعالة.</p>
+        </div>
+
+        <button class="primary-button" @onclick="OpenForm">
+            ＋ كفالة جديدة
+        </button>
+    </header>
+
+    @if (message is not null)
+    {
+        <div class="alert success-alert">@message</div>
+    }
+
+    @if (!showForm && errorMessage is not null)
+    {
+        <div class="alert error-alert">@errorMessage</div>
+    }
+
+    <section class="content-grid">
+        <div class="list-card">
+            <div class="toolbar">
+                <div class="search-box">
+                    <span>⌕</span>
+                    <input value="@listSearch"
+                           @oninput="SearchListChanged"
+                           placeholder="ابحث بالكافل أو المكفول أو رقم الملف..." />
+                </div>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="empty-state">جاري التحميل...</div>
+            }
+            else if (sponsorships.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>لا توجد كفالات فعالة</strong>
+                    <span>يمكنك إنشاء أول كفالة من الزر أعلاه.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>رقم الملف</th>
+                                <th>المكفول</th>
+                                <th>الكافل</th>
+                                <th>المعرّف</th>
+                                <th>القيمة الشهرية</th>
+                                <th>تاريخ البداية</th>
+                                <th>تاريخ النهاية</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var sponsorship in sponsorships)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="count-badge">
+                                            @sponsorship.FileNumber
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <strong>@sponsorship.BeneficiaryName</strong>
+                                    </td>
+
+                                    <td>@sponsorship.SponsorName</td>
+
+                                    <td>
+                                        @(sponsorship.ResponsibleSheikhName ?? "غير محدد")
+                                    </td>
+
+                                    <td>
+                                        @sponsorship.MonthlyAmount.ToString("0.000")
+                                        د.أ
+                                    </td>
+
+                                    <td>
+                                        @sponsorship.StartDate.ToString("yyyy/MM/dd")
+                                    </td>
+
+                                    <td>
+                                        <span class="@GetEndDateClass(sponsorship.EndDate)">
+                                            @sponsorship.EndDate.ToString("yyyy/MM/dd")
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+    
+    </section>
+
+    <AppModal IsOpen="@showForm"
+              Size="large"
+              Title="إضافة كفالة جديدة"
+              Label="إدارة الكفالات"
+              OnClose="CloseForm">
+
+        @if (showForm &&
+             !string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert error-alert">
+                @errorMessage
+            </div>
+        }
+
+        @if (responsibleSheikhs.Count == 0)
+        {
+            <div class="alert warning-alert">
+                لا يوجد معرّفون فعالون. يجب إضافة معرّف قبل إنشاء الكفالة.
+            </div>
+        }
+
+        <EditForm Model="@form"
+                  OnValidSubmit="SaveAsync"
+                  FormName="SponsorshipForm"
+                  class="app-form">
+
+            <DataAnnotationsValidator />
+
+            <div class="selection-grid">
+                <div class="selection-field">
+                    <div class="form-field autocomplete">
+                        <label>
+                            الكافل
+                            <span>*</span>
+                        </label>
+
+                        <input value="@sponsorSearch"
+                               @oninput="SponsorSearchChanged"
+                               autocomplete="off"
+                               placeholder="اكتب اسم الكافل أو هاتفه" />
+
+                        @if (sponsorResults.Count > 0)
+                        {
+                            <div class="search-results">
+                                @foreach (var sponsor in sponsorResults)
+                                {
+                                    <button type="button"
+                                            @onclick="() => SelectSponsor(sponsor)">
+                                        <strong>@sponsor.Name</strong>
+
+                                        <small>
+                                            @(sponsor.PhoneNumber ?? "دون هاتف")
+                                        </small>
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        @if (form.SponsorId <= 0 && showValidation)
+                        {
+                            <div class="validation-message">
+                                يجب اختيار الكافل من نتائج البحث.
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedSponsor is not null)
+                    {
+                        <div class="selected-record">
+                            <span>الكافل المختار</span>
+                            <strong>@selectedSponsor.Name</strong>
+
+                            <small>
+                                @(selectedSponsor.PhoneNumber ?? "دون هاتف")
+                            </small>
+                        </div>
+                    }
+                </div>
+
+                <div class="selection-field">
+                    <div class="form-field autocomplete">
+                        <label>
+                            المكفول
+                            <span>*</span>
+                        </label>
+
+                        <input value="@beneficiarySearch"
+                               @oninput="BeneficiarySearchChanged"
+                               autocomplete="off"
+                               placeholder="اكتب الاسم أو رقم الملف" />
+
+                        @if (beneficiaryResults.Count > 0)
+                        {
+                            <div class="search-results">
+                                @foreach (var beneficiary in beneficiaryResults)
+                                {
+                                    <button type="button"
+                                            @onclick="() => SelectBeneficiary(beneficiary)">
+                                        <strong>@beneficiary.Name</strong>
+
+                                        <small>
+                                            ملف رقم @beneficiary.FileNumber
+                                        </small>
+                                    </button>
+                                }
+                            </div>
+                        }
+
+                        @if (form.BeneficiaryId <= 0 && showValidation)
+                        {
+                            <div class="validation-message">
+                                يجب اختيار المكفول من نتائج البحث.
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedBeneficiary is not null)
+                    {
+                        <div class="selected-record">
+                            <span>المكفول المختار</span>
+                            <strong>@selectedBeneficiary.Name</strong>
+
+                            <small>
+                                ملف رقم @selectedBeneficiary.FileNumber
+                            </small>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-field">
+                    <label>
+                        المعرّف المسؤول
+                        <span>*</span>
+                    </label>
+
+                    <InputSelect @bind-Value="form.ResponsibleSheikhId">
+                        <option value="0">اختر المعرّف المسؤول</option>
+
+                        @foreach (var sheikh in responsibleSheikhs)
+                        {
+                            <option value="@sheikh.Id">
+                                @sheikh.Name
+                            </option>
+                        }
+                    </InputSelect>
+
+                    @if (form.ResponsibleSheikhId <= 0 &&
+                         showValidation)
+                    {
+                        <div class="validation-message">
+                            يجب اختيار المعرّف المسؤول عن الكفالة.
+                        </div>
+                    }
+                </div>
+
+                <div class="form-field">
+                    <label>
+                        قيمة الكفالة الشهرية
+                        <span>*</span>
+                    </label>
+
+                    <div class="money-input">
+                        <InputNumber @bind-Value="form.MonthlyAmount"
+                                     min="0.001"
+                                     step="0.001"
+                                     placeholder="0.000" />
+
+                        <span>د.أ</span>
+                    </div>
+
+                    <ValidationMessage For="() => form.MonthlyAmount" />
+                </div>
+            </div>
+
+            <div class="dates-grid">
+                <div class="form-field">
+                    <label>
+                        تاريخ البداية
+                        <span>*</span>
+                    </label>
+
+                    <InputDate @bind-Value="form.StartDate" />
+                </div>
+
+                <div class="form-field">
+                    <label>
+                        تاريخ النهاية
+                        <span>*</span>
+                    </label>
+
+                    <InputDate @bind-Value="form.EndDate" />
+                </div>
+            </div>
+
+            <div class="form-field">
+                <label>ملاحظات</label>
+
+                <InputTextArea @bind-Value="form.Notes"
+                               placeholder="ملاحظات اختيارية عن الكفالة..." />
+
+                <ValidationMessage For="() => form.Notes" />
+            </div>
+
+            <div class="form-actions">
+                <button type="submit"
+                        class="primary-button"
+                        disabled="@(isSaving ||
+                                                    responsibleSheikhs.Count == 0)">
+                    @(isSaving
+                        ? "جاري إنشاء الكفالة..."
+                        : "إنشاء الكفالة")
+                </button>
+
+                <button type="button"
+                        class="cancel-button"
+                        disabled="@isSaving"
+                        @onclick="CloseForm">
+                    إلغاء
+                </button>
+            </div>
+        </EditForm>
+    </AppModal>
+
+</div>
+
+@code {
+    private IReadOnlyList<SponsorshipDto> sponsorships = [];
+    private IReadOnlyList<SponsorDto> sponsorResults = [];
+    private IReadOnlyList<BeneficiaryDto> beneficiaryResults = [];
+
+    private SponsorDto? selectedSponsor;
+    private BeneficiaryDto? selectedBeneficiary;
+
+    private SponsorshipFormModel form = NewForm();
+
+    private string listSearch = string.Empty;
+    private string sponsorSearch = string.Empty;
+    private string beneficiarySearch = string.Empty;
+
+    private string? message;
+    private string? errorMessage;
+
+    private bool showForm;
+    private bool showValidation;
+    private bool isLoading = true;
+    private bool isSaving;
+
+    private IReadOnlyList<ResponsibleSheikhDto> responsibleSheikhs = [];
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        responsibleSheikhs =
+            await ResponsibleSheikhService.GetActiveAsync();
+
+        await LoadSponsorshipsAsync();
+    }
+
+    private async Task LoadSponsorshipsAsync()
+    {
+        isLoading = true;
+
+        try
+        {
+            sponsorships = await SponsorshipService.SearchAsync(
+                listSearch,
+                activeOnly: true);
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SearchListChanged(ChangeEventArgs args)
+    {
+        listSearch = args.Value?.ToString() ?? string.Empty;
+        await LoadSponsorshipsAsync();
+    }
+
+    private async Task SponsorSearchChanged(ChangeEventArgs args)
+    {
+        sponsorSearch = args.Value?.ToString() ?? string.Empty;
+        selectedSponsor = null;
+        form.SponsorId = 0;
+
+        sponsorResults = string.IsNullOrWhiteSpace(sponsorSearch)
+            ? []
+            : await SponsorService.SearchAsync(
+                sponsorSearch,
+                includeInactive: false);
+    }
+
+    private async Task BeneficiarySearchChanged(ChangeEventArgs args)
+    {
+        beneficiarySearch = args.Value?.ToString() ?? string.Empty;
+        selectedBeneficiary = null;
+        form.BeneficiaryId = 0;
+
+        if (string.IsNullOrWhiteSpace(beneficiarySearch))
+        {
+            beneficiaryResults = [];
+            return;
+        }
+
+        var results = await BeneficiaryService.SearchAsync(
+            beneficiarySearch);
+
+        beneficiaryResults = results
+            .Where(item =>
+                item.Status ==
+                BeneficiaryStatus.WaitingForSponsor &&
+                !item.ActiveSponsorshipId.HasValue)
+            .ToList();
+    }
+
+    private void SelectSponsor(SponsorDto sponsor)
+    {
+        selectedSponsor = sponsor;
+        form.SponsorId = sponsor.Id;
+        sponsorSearch = sponsor.Name;
+        sponsorResults = [];
+    }
+
+    private void SelectBeneficiary(BeneficiaryDto beneficiary)
+    {
+        selectedBeneficiary = beneficiary;
+        form.BeneficiaryId = beneficiary.Id;
+        beneficiarySearch =
+            $"{beneficiary.FileNumber} - {beneficiary.Name}";
+        beneficiaryResults = [];
+    }
+
+    private void OpenForm()
+    {
+        ClearMessages();
+        ResetForm();
+        showForm = true;
+    }
+
+    private void CloseForm()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        showForm = false;
+        showValidation = false;
+        errorMessage = null;
+        ResetForm();
+    }
+
+    private async Task SaveAsync()
+    {
+        showValidation = true;
+        ClearMessages();
+
+        if (form.SponsorId <= 0 ||
+            form.BeneficiaryId <= 0 ||
+            form.ResponsibleSheikhId <= 0)
+        {
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            await SponsorshipService.CreateAsync(
+                new CreateSponsorshipRequest(
+                    form.SponsorId,
+                    form.BeneficiaryId,
+                    form.ResponsibleSheikhId,
+                    form.MonthlyAmount,
+                    form.StartDate,
+                    form.EndDate,
+                    form.Notes));
+
+            message = "تم إنشاء الكفالة بنجاح.";
+            showForm = false;
+            ResetForm();
+
+            await LoadSponsorshipsAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        form = NewForm();
+        selectedSponsor = null;
+        selectedBeneficiary = null;
+        sponsorSearch = string.Empty;
+        beneficiarySearch = string.Empty;
+        sponsorResults = [];
+        beneficiaryResults = [];
+        showValidation = false;
+    }
+
+    private void ClearMessages()
+    {
+        message = null;
+        errorMessage = null;
+    }
+
+    private static SponsorshipFormModel NewForm()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
+        return new SponsorshipFormModel
+        {
+            StartDate = today,
+            EndDate = today.AddMonths(1)
+        };
+    }
+
+    private static string GetEndDateClass(DateOnly endDate)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+
+        if (endDate < today)
+        {
+            return "end-date expired";
+        }
+
+        if (endDate <= today.AddMonths(1))
+        {
+            return "end-date near";
+        }
+
+        return "end-date valid";
+    }
+
+    private sealed class SponsorshipFormModel
+    {
+        public int SponsorId { get; set; }
+
+        public int BeneficiaryId { get; set; }
+
+        public int ResponsibleSheikhId { get; set; }
+
+        [Range(
+            typeof(decimal),
+            "0.001",
+            "999999999999",
+            ErrorMessage = "قيمة الكفالة يجب أن تكون أكبر من صفر.")]
+        public decimal MonthlyAmount { get; set; }
+
+        public DateOnly StartDate { get; set; }
+
+        public DateOnly EndDate { get; set; }
+
+        [StringLength(
+            1000,
+            ErrorMessage = "الملاحظات يجب ألا تتجاوز 1000 حرف.")]
+        public string? Notes { get; set; }
+    }
+}

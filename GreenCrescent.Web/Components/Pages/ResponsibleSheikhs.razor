@@ -1,0 +1,334 @@
+﻿@page "/responsible-sheikhs"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using GreenCrescent.Application.Features.ResponsibleSheikhs
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Staff")]
+@inject IResponsibleSheikhService ResponsibleSheikhService
+
+<PageTitle>إدارة المعرّفين</PageTitle>
+
+<div class="sponsors-page" dir="rtl">
+    <header class="page-header">
+        <div>
+            <span class="section-label">إدارة الكفالات</span>
+            <h1>المعرّفون</h1>
+            <p>إدارة الشيوخ المسؤولين عن متابعة الكفالات.</p>
+        </div>
+
+        <button class="primary-button"
+                type="button"
+                @onclick="OpenCreateForm">
+            ＋ معرّف جديد
+        </button>
+    </header>
+
+    @if (message is not null)
+    {
+        <div class="alert success-alert">@message</div>
+    }
+
+    @if (!showForm && errorMessage is not null)
+    {
+        <div class="alert error-alert">@errorMessage</div>
+    }
+
+    <section class="content-grid">
+        <div class="list-card">
+            @if (isLoading)
+            {
+                <div class="empty-state">
+                    جاري تحميل المعرّفين...
+                </div>
+            }
+            else if (responsibleSheikhs.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>لا يوجد معرّفون مسجلون</strong>
+                    <span>اضغط على «معرّف جديد» لإضافة أول معرّف.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>اسم المعرّف</th>
+                                <th>الحالة</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var sheikh in responsibleSheikhs)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>@sheikh.Name</strong>
+                                    </td>
+
+                                    <td>
+                                        @if (sheikh.IsActive)
+                                        {
+                                            <span class="status-badge active">
+                                                فعال
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="status-badge inactive">
+                                                موقوف
+                                            </span>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        <div class="row-actions">
+                                            <button type="button"
+                                                    class="edit-button"
+                                                    @onclick="() => OpenEditForm(sheikh)">
+                                                تعديل
+                                            </button>
+
+                                            <button type="button"
+                                                    class="@(sheikh.IsActive
+                                                            ? "stop-button"
+                                                            : "activate-button")"
+                                                    disabled="@isSaving"
+                                                    @onclick="() => ToggleActiveAsync(sheikh)">
+
+                                                @(sheikh.IsActive ? "إيقاف" : "تفعيل")
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+    </section>
+
+    <AppModal IsOpen="@showForm"
+              Title="@(form.Id.HasValue
+                      ? "تعديل بيانات المعرّف"
+                      : "إضافة معرّف جديد")"
+              Label="إدارة المعرّفين"
+              OnClose="CloseForm">
+
+        @if (showForm &&
+             !string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert error-alert">
+                @errorMessage
+            </div>
+        }
+
+        <EditForm Model="@form"
+                  OnValidSubmit="SaveAsync"
+                  FormName="ResponsibleSheikhForm"
+                  class="app-form">
+
+            <DataAnnotationsValidator />
+
+            <div class="form-field">
+                <label>
+                    اسم المعرّف
+                    <span>*</span>
+                </label>
+
+                <InputText @bind-Value="form.Name"
+                           autocomplete="name"
+                           placeholder="اكتب اسم الشيخ المسؤول" />
+
+                <ValidationMessage For="() => form.Name" />
+            </div>
+
+            <div class="form-actions">
+                <button type="submit"
+                        class="primary-button"
+                        disabled="@isSaving">
+                    @GetSaveButtonText()
+                </button>
+
+                <button type="button"
+                        class="cancel-button"
+                        disabled="@isSaving"
+                        @onclick="CloseForm">
+                    إلغاء
+                </button>
+            </div>
+        </EditForm>
+    </AppModal>
+
+</div>
+
+@code {
+    private IReadOnlyList<ResponsibleSheikhDto> responsibleSheikhs = [];
+
+    private ResponsibleSheikhFormModel form = new();
+
+    private string? message;
+    private string? errorMessage;
+
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showForm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            responsibleSheikhs =
+                await ResponsibleSheikhService.GetAllAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenCreateForm()
+    {
+        ClearMessages();
+        form = new ResponsibleSheikhFormModel();
+        showForm = true;
+    }
+
+    private void OpenEditForm(ResponsibleSheikhDto sheikh)
+    {
+        ClearMessages();
+
+        form = new ResponsibleSheikhFormModel
+        {
+            Id = sheikh.Id,
+            Name = sheikh.Name
+        };
+
+        showForm = true;
+    }
+
+    private void CloseForm()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        showForm = false;
+        form = new ResponsibleSheikhFormModel();
+        errorMessage = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        ClearMessages();
+        isSaving = true;
+
+        try
+        {
+            if (form.Id.HasValue)
+            {
+                await ResponsibleSheikhService.UpdateAsync(
+                    form.Id.Value,
+                    form.Name);
+
+                message = "تم تعديل بيانات المعرّف بنجاح.";
+            }
+            else
+            {
+                await ResponsibleSheikhService.CreateAsync(
+                    form.Name);
+
+                message = "تمت إضافة المعرّف بنجاح.";
+            }
+
+            showForm = false;
+            form = new ResponsibleSheikhFormModel();
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ToggleActiveAsync(
+        ResponsibleSheikhDto sheikh)
+    {
+        ClearMessages();
+        isSaving = true;
+
+        try
+        {
+            var newStatus = !sheikh.IsActive;
+
+            await ResponsibleSheikhService.SetActiveAsync(
+                sheikh.Id,
+                newStatus);
+
+            message = newStatus
+                ? "تم تفعيل المعرّف بنجاح."
+                : "تم إيقاف المعرّف بنجاح.";
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private string GetSaveButtonText()
+    {
+        if (isSaving)
+        {
+            return "جاري الحفظ...";
+        }
+
+        return form.Id.HasValue
+            ? "حفظ التعديلات"
+            : "إضافة المعرّف";
+    }
+
+    private void ClearMessages()
+    {
+        message = null;
+        errorMessage = null;
+    }
+
+    private sealed class ResponsibleSheikhFormModel
+    {
+        public int? Id { get; set; }
+
+        [Required(ErrorMessage = "اسم المعرّف مطلوب.")]
+        [StringLength(
+            150,
+            ErrorMessage = "اسم المعرّف يجب ألا يتجاوز 150 حرفًا.")]
+        public string Name { get; set; } = string.Empty;
+    }
+}

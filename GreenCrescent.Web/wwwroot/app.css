@@ -1,0 +1,325 @@
+:root {
+    --gc-primary: #16834b;
+    --gc-primary-dark: #065f46;
+    --gc-primary-darker: #064e3b;
+    --gc-primary-light: #dcfce7;
+    --gc-background: #f5f8f6;
+    --gc-surface: #ffffff;
+    --gc-text: #17211b;
+    --gc-muted: #64748b;
+    --gc-border: #dce7df;
+    --gc-danger: #b42318;
+    --gc-radius: 14px;
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    direction: rtl;
+}
+
+html,
+body {
+    min-height: 100%;
+    margin: 0;
+    color: var(--gc-text);
+    background: var(--gc-background);
+    font-family: Tahoma, "Segoe UI", Arial, sans-serif;
+}
+
+body {
+    direction: rtl;
+    text-align: right;
+}
+
+a,
+.btn-link {
+    color: var(--gc-primary);
+}
+
+.btn-primary {
+    color: white;
+    background-color: var(--gc-primary);
+    border-color: var(--gc-primary);
+}
+
+    .btn-primary:hover,
+    .btn-primary:focus {
+        color: white;
+        background-color: var(--gc-primary-dark);
+        border-color: var(--gc-primary-dark);
+    }
+
+.btn:focus,
+.btn:active:focus,
+.btn-link.nav-link:focus,
+.form-control:focus,
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem rgb(22 131 75 / 25%);
+}
+
+input,
+select,
+textarea,
+button {
+    font-family: inherit;
+}
+
+.validation-message {
+    color: var(--gc-danger);
+}
+.app-form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+    .form-field label {
+        color: #27342d;
+        font-size: 0.88rem;
+        font-weight: 800;
+    }
+
+        .form-field label span {
+            color: #c2413b;
+        }
+
+    .form-field input:not([type="checkbox"]),
+    .form-field select,
+    .form-field textarea {
+        min-height: 46px;
+        padding: 10px 13px;
+        color: #17211b;
+        background: white;
+        border: 1px solid #cfddd4;
+        border-radius: 11px;
+        outline: none;
+        transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+    }
+
+    .form-field textarea {
+        min-height: 105px;
+        resize: vertical;
+    }
+
+        .form-field input:not([type="checkbox"]):hover,
+        .form-field select:hover,
+        .form-field textarea:hover {
+            border-color: #91baa2;
+        }
+
+        .form-field input:not([type="checkbox"]):focus,
+        .form-field select:focus,
+        .form-field textarea:focus {
+            background: white;
+            border-color: #16834b;
+            box-shadow: 0 0 0 3px rgb(22 131 75 / 12%);
+        }
+
+        .form-field input::placeholder,
+        .form-field textarea::placeholder {
+            color: #94a39a;
+        }
+
+    .form-field select {
+        cursor: pointer;
+    }
+
+    .form-field .validation-message {
+        color: #b42318;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 5px;
+    padding-top: 18px;
+    border-top: 1px solid #edf1ee;
+}
+
+.primary-button,
+.cancel-button,
+.danger-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 9px 18px;
+    border-radius: 11px;
+    font-family: inherit;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.primary-button {
+    color: white;
+    background: #087443;
+    border: 1px solid #087443;
+}
+
+    .primary-button:hover {
+        background: #06673b;
+        border-color: #06673b;
+    }
+
+.cancel-button {
+    color: #45534b;
+    background: white;
+    border: 1px solid #cfddd4;
+}
+
+    .cancel-button:hover {
+        background: #f5f8f6;
+    }
+
+.danger-button {
+    color: white;
+    background: #b42318;
+    border: 1px solid #b42318;
+}
+
+    .primary-button:disabled,
+    .cancel-button:disabled,
+    .danger-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+@media print {
+    @page {
+        size: A4 landscape;
+        margin: 10mm;
+    }
+
+    html,
+    body {
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        overflow: visible !important;
+    }
+
+    /* إخفاء تخطيط البرنامج */
+    .sidebar,
+    .content-header,
+    .sidebar-toggle,
+    .no-print,
+    nav,
+    footer {
+        display: none !important;
+    }
+
+    .app-shell,
+    .main-content,
+    main,
+    article,
+    .content,
+    .reports-page {
+        display: block !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        overflow: visible !important;
+    }
+
+    /* إخفاء كل شيء باستثناء التقرير */
+    body * {
+        visibility: hidden !important;
+    }
+
+    #print-report,
+    #print-report * {
+        visibility: visible !important;
+    }
+
+    #print-report {
+        position: absolute !important;
+        top: 0 !important;
+        right: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        direction: rtl !important;
+        color: black !important;
+        background: white !important;
+    }
+
+        #print-report .no-print {
+            display: none !important;
+        }
+
+        #print-report h1,
+        #print-report h2,
+        #print-report h3 {
+            margin: 0 0 8px !important;
+            color: black !important;
+            text-align: center !important;
+        }
+
+        #print-report table {
+            width: 100% !important;
+            min-width: 0 !important;
+            border-collapse: collapse !important;
+            table-layout: auto !important;
+            direction: rtl !important;
+            font-size: 8.5pt !important;
+        }
+
+        #print-report th,
+        #print-report td {
+            padding: 4px 3px !important;
+            color: black !important;
+            background: white !important;
+            border: 1px solid #555 !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+        }
+
+        #print-report thead {
+            display: table-header-group !important;
+        }
+
+            #print-report thead th {
+                background: #e7f3eb !important;
+                font-weight: 800 !important;
+                print-color-adjust: exact;
+                -webkit-print-color-adjust: exact;
+            }
+
+        #print-report tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+        }
+
+        #print-report .table-container,
+        #print-report .table-responsive {
+            width: 100% !important;
+            overflow: visible !important;
+        }
+
+        #print-report a {
+            color: black !important;
+            text-decoration: none !important;
+        }
+}

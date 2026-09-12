@@ -1,0 +1,595 @@
+﻿@page "/financial-entry"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@using GreenCrescent.Application.Features.FinancialEntries
+@using GreenCrescent.Application.Features.Sponsors
+@using GreenCrescent.Core.Enums
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Staff")]
+@inject IFinancialEntryService FinancialEntryService
+@inject ISponsorService SponsorService
+@implements IDisposable
+
+<PageTitle>إدخال مالي</PageTitle>
+
+<div class="sponsors-page" dir="rtl">
+    <header class="page-header">
+        <div>
+            <span class="section-label">الحركات المالية</span>
+            <h1>إدخال مالي</h1>
+            <p>تسجيل التبرعات ودفعات الكفالات.</p>
+        </div>
+    </header>
+
+    @if (message is not null)
+    {
+        <div class="alert success-alert">@message</div>
+    }
+
+    @if (errorMessage is not null)
+    {
+        <div class="alert error-alert">@errorMessage</div>
+    }
+
+    <section class="finance-grid">
+        <div class="form-card finance-form">
+            <EditForm Model="@form"
+                      OnValidSubmit="SaveAsync"
+                      FormName="FinancialEntryForm"
+                      class="app-form">
+                <DataAnnotationsValidator />
+
+                <div class="form-field">
+                    <label>نوع الإدخال <span>*</span></label>
+
+                    <select value="@((int)form.EntryType)"
+                            @onchange="EntryTypeChanged">
+                        @foreach (var type in EntryTypes)
+                        {
+                            <option value="@((int)type)">
+                                @GetEntryTypeName(type)
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                @if (IsSponsorshipPayment)
+                {
+                    <div class="form-field autocomplete">
+                        <label>الكافل <span>*</span></label>
+
+                        <input value="@sponsorSearch"
+                               @oninput="SponsorSearchChanged"
+                               placeholder="ابحث باسم الكافل أو الهاتف" />
+
+                        @if (sponsorResults.Count > 0)
+                        {
+                            <div class="search-results">
+                                @foreach (var sponsor in sponsorResults)
+                                {
+                                    <button type="button"
+                                            @onclick="() => SelectSponsorAsync(sponsor)">
+                                        <strong>@sponsor.Name</strong>
+                                        <small>
+                                            @(sponsor.PhoneNumber ?? "دون هاتف")
+                                            — @sponsor.ActiveSponsorshipsCount كفالة
+                                        </small>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (selectedSponsor is not null)
+                    {
+                        <div class="selected-record">
+                            <span>الكافل المختار</span>
+                            <strong>@selectedSponsor.Name</strong>
+                            <small>
+                                عدد الكفالات الفعالة:
+                                @selectedSponsor.ActiveSponsorshipsCount
+                            </small>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="form-field">
+                        <label>اسم المتبرع <span>*</span></label>
+
+                        <InputText @bind-Value="form.DonorName"
+                                   placeholder="اكتب اسم المتبرع" />
+
+                        <ValidationMessage For="() => form.DonorName" />
+                    </div>
+                }
+
+                <div class="form-field">
+                    <label>القيمة المالية <span>*</span></label>
+
+                    <div class="money-input">
+                        <input type="number"
+                               min="0.001"
+                               step="0.001"
+                               value="@form.Amount"
+                               @oninput="AmountChanged"
+                               dir="ltr"
+                               placeholder="0.000" />
+
+                        <span>د.أ</span>
+                    </div>
+
+                    <ValidationMessage For="() => form.Amount" />
+
+                    @if (previewLoading)
+                    {
+                        <small class="field-hint">
+                            جاري احتساب مدة الكفالة...
+                        </small>
+                    }
+
+                    @if (previewError is not null)
+                    {
+                        <div class="validation-message">
+                            @previewError
+                        </div>
+                    }
+                </div>
+
+                <div class="form-field">
+                    <label>طريقة الدفع <span>*</span></label>
+
+                    <InputSelect @bind-Value="form.PaymentMethod">
+                        @foreach (var method in PaymentMethods)
+                        {
+                            <option value="@method">
+                                @GetPaymentMethodName(method)
+                            </option>
+                        }
+                    </InputSelect>
+                </div>
+
+                <div class="two-columns">
+                    <div class="form-field">
+                        <label>رقم الدفتر</label>
+
+                        <InputText @bind-Value="form.BookNumber"
+                                   placeholder="رقم الدفتر" />
+
+                        <ValidationMessage For="() => form.BookNumber" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>رقم الوصل</label>
+
+                        <InputText @bind-Value="form.ReceiptNumber"
+                                   placeholder="رقم الوصل" />
+
+                        <ValidationMessage For="() => form.ReceiptNumber" />
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label>التاريخ <span>*</span></label>
+
+                    <InputDate @bind-Value="form.EntryDate" />
+                </div>
+
+                <div class="form-field">
+                    <label>ملاحظات</label>
+
+                    <InputTextArea @bind-Value="form.Notes"
+                                   placeholder="ملاحظات اختيارية..." />
+
+                    <ValidationMessage For="() => form.Notes" />
+                </div>
+
+                <div class="form-actions">
+                    <button class="primary-button"
+                            type="submit"
+                            disabled="@isSaving">
+                        @(isSaving ? "جاري الحفظ..." : "تأكيد الحركة")
+                    </button>
+
+                    <button class="cancel-button"
+                            type="button"
+                            disabled="@isSaving"
+                            @onclick="ResetForm">
+                        تفريغ الحقول
+                    </button>
+                </div>
+            </EditForm>
+        </div>
+
+        <div class="preview-card">
+            <div class="preview-header">
+                <span class="section-label">المعاينة</span>
+                <h2>توزيع دفعة الكفالة</h2>
+            </div>
+
+            @if (!IsSponsorshipPayment)
+            {
+                <div class="empty-state">
+                    <strong>هذه الحركة لا تمدد كفالة</strong>
+                    <span>ستُسجل كتبرع مالي فقط.</span>
+                </div>
+            }
+            else if (selectedSponsor is null)
+            {
+                <div class="empty-state">
+                    <strong>اختر الكافل</strong>
+                    <span>ستظهر جميع كفالاته الفعالة هنا.</span>
+                </div>
+            }
+            else if (preview is null)
+            {
+                <div class="empty-state">
+                    <strong>أدخل قيمة الدفعة</strong>
+                    <span>يجب أن تكون من مضاعفات مجموع الكفالات.</span>
+                </div>
+            }
+            else
+            {
+                <div class="preview-summary">
+                    <div>
+                        <span>الكافل</span>
+                        <strong>@preview.SponsorName</strong>
+                    </div>
+
+                    <div>
+                        <span>المجموع الشهري</span>
+                        <strong>
+                            @preview.TotalMonthlyAmount.ToString("0.000")
+                            د.أ
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>عدد الأشهر</span>
+                        <strong>@preview.AddedMonths</strong>
+                    </div>
+
+                    <div>
+                        <span>قيمة الدفعة</span>
+                        <strong>
+                            @preview.PaidAmount.ToString("0.000")
+                            د.أ
+                        </strong>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>المكفول</th>
+                                <th>القيمة</th>
+                                <th>النهاية القديمة</th>
+                                <th>النهاية الجديدة</th>
+                                <th>الحصة</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var allocation in preview.Allocations)
+                            {
+                                <tr>
+                                    <td>
+                                        <strong>
+                                            @allocation.BeneficiaryName
+                                        </strong>
+                                        <small class="block">
+                                            ملف @allocation.FileNumber
+                                        </small>
+                                    </td>
+
+                                    <td>
+                                        @allocation.MonthlyAmount.ToString("0.000")
+                                    </td>
+
+                                    <td>
+                                        @allocation.CurrentEndDate.ToString("yyyy/MM/dd")
+                                    </td>
+
+                                    <td>
+                                        <strong class="new-date">
+                                            @allocation.NewEndDate.ToString("yyyy/MM/dd")
+                                        </strong>
+                                    </td>
+
+                                    <td>
+                                        @allocation.AllocatedAmount.ToString("0.000")
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+@code {
+    private static readonly FinancialEntryType[] EntryTypes =
+        Enum.GetValues<FinancialEntryType>();
+
+    private static readonly PaymentMethod[] PaymentMethods =
+        Enum.GetValues<PaymentMethod>();
+
+    private FinancialEntryFormModel form = NewForm();
+
+    private IReadOnlyList<SponsorDto> sponsorResults = [];
+    private SponsorDto? selectedSponsor;
+    private SponsorshipPaymentPreviewDto? preview;
+
+    private string sponsorSearch = string.Empty;
+    private string? message;
+    private string? errorMessage;
+    private string? previewError;
+
+    private bool isSaving;
+    private bool previewLoading;
+
+    private CancellationTokenSource? previewCancellation;
+
+    private bool IsSponsorshipPayment =>
+        form.EntryType is
+            FinancialEntryType.OrphanSponsorship or
+            FinancialEntryType.SponsorshipDeliveredByHand;
+
+    private async Task EntryTypeChanged(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var value))
+        {
+            form.EntryType = (FinancialEntryType)value;
+        }
+
+        selectedSponsor = null;
+        form.SponsorId = null;
+        sponsorSearch = string.Empty;
+        sponsorResults = [];
+        preview = null;
+        previewError = null;
+
+        await Task.CompletedTask;
+    }
+
+    private async Task SponsorSearchChanged(ChangeEventArgs args)
+    {
+        sponsorSearch = args.Value?.ToString() ?? string.Empty;
+        selectedSponsor = null;
+        form.SponsorId = null;
+        preview = null;
+        previewError = null;
+
+        sponsorResults = string.IsNullOrWhiteSpace(sponsorSearch)
+            ? []
+            : await SponsorService.SearchAsync(sponsorSearch);
+    }
+
+    private async Task SelectSponsorAsync(SponsorDto sponsor)
+    {
+        selectedSponsor = sponsor;
+        form.SponsorId = sponsor.Id;
+        form.DonorName = sponsor.Name;
+        sponsorSearch = sponsor.Name;
+        sponsorResults = [];
+
+        await RefreshPreviewAsync();
+    }
+
+    private async Task AmountChanged(ChangeEventArgs args)
+    {
+        var text = args.Value?.ToString();
+
+        if (!decimal.TryParse(
+                text,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var amount))
+        {
+            decimal.TryParse(
+                text,
+                NumberStyles.Number,
+                CultureInfo.CurrentCulture,
+                out amount);
+        }
+
+        form.Amount = amount;
+        preview = null;
+        previewError = null;
+
+        previewCancellation?.Cancel();
+        previewCancellation?.Dispose();
+        previewCancellation = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(350, previewCancellation.Token);
+            await RefreshPreviewAsync(previewCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshPreviewAsync(
+        CancellationToken cancellationToken = default)
+    {
+        preview = null;
+        previewError = null;
+
+        if (!IsSponsorshipPayment ||
+            !form.SponsorId.HasValue ||
+            form.Amount <= 0)
+        {
+            return;
+        }
+
+        previewLoading = true;
+
+        try
+        {
+            preview =
+                await FinancialEntryService
+                    .PreviewSponsorshipPaymentAsync(
+                        form.SponsorId.Value,
+                        form.Amount,
+                        cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            previewError = exception.Message;
+        }
+        finally
+        {
+            previewLoading = false;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        errorMessage = null;
+        message = null;
+
+        if (IsSponsorshipPayment)
+        {
+            if (!form.SponsorId.HasValue)
+            {
+                errorMessage =
+                    "يجب اختيار الكافل من نتائج البحث.";
+                return;
+            }
+
+            await RefreshPreviewAsync();
+
+            if (preview is null)
+            {
+                errorMessage =
+                    previewError ??
+                    "تعذر احتساب توزيع دفعة الكفالة.";
+                return;
+            }
+        }
+        else if (string.IsNullOrWhiteSpace(form.DonorName))
+        {
+            errorMessage = "اسم المتبرع مطلوب.";
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            var entryId =
+                await FinancialEntryService.CreateAsync(
+                    new CreateFinancialEntryRequest(
+                        form.SponsorId,
+                        form.DonorName,
+                        form.EntryType,
+                        form.Amount,
+                        form.PaymentMethod,
+                        form.BookNumber,
+                        form.ReceiptNumber,
+                        form.EntryDate,
+                        form.Notes));
+
+            message =
+                $"تم تسجيل الحركة المالية رقم {entryId} بنجاح.";
+
+            ResetForm();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        form = NewForm();
+        selectedSponsor = null;
+        sponsorSearch = string.Empty;
+        sponsorResults = [];
+        preview = null;
+        previewError = null;
+        errorMessage = null;
+    }
+
+    private static FinancialEntryFormModel NewForm()
+    {
+        return new FinancialEntryFormModel
+        {
+            EntryType = FinancialEntryType.NewOrphan,
+            PaymentMethod = PaymentMethod.Cash,
+            EntryDate = DateOnly.FromDateTime(DateTime.Today)
+        };
+    }
+
+    private static string GetEntryTypeName(
+        FinancialEntryType type) => type switch
+        {
+            FinancialEntryType.NewOrphan => "يتيم جديد",
+            FinancialEntryType.Zakat => "زكاة",
+            FinancialEntryType.Charity => "صدقة",
+            FinancialEntryType.Other => "أخرى",
+            FinancialEntryType.OrphanSponsorship => "كفالة يتيم",
+            FinancialEntryType.SponsorshipDeliveredByHand =>
+                "كفالة سُلّمت باليد",
+            _ => type.ToString()
+        };
+
+    private static string GetPaymentMethodName(
+        PaymentMethod method) => method switch
+        {
+            PaymentMethod.Cash => "نقدي",
+            PaymentMethod.Clearing => "مقاصة",
+            PaymentMethod.ByHand => "باليد",
+            PaymentMethod.BankTransfer => "تحويل بنكي",
+            _ => method.ToString()
+        };
+
+    public void Dispose()
+    {
+        previewCancellation?.Cancel();
+        previewCancellation?.Dispose();
+    }
+
+    private sealed class FinancialEntryFormModel
+    {
+        public int? SponsorId { get; set; }
+
+        public string? DonorName { get; set; }
+
+        public FinancialEntryType EntryType { get; set; }
+
+        [Range(
+            typeof(decimal),
+            "0.001",
+            "999999999999",
+            ErrorMessage = "القيمة يجب أن تكون أكبر من صفر.")]
+        public decimal Amount { get; set; }
+
+        public PaymentMethod PaymentMethod { get; set; }
+
+        [StringLength(50)]
+        public string? BookNumber { get; set; }
+
+        [StringLength(50)]
+        public string? ReceiptNumber { get; set; }
+
+        public DateOnly EntryDate { get; set; }
+
+        [StringLength(1000)]
+        public string? Notes { get; set; }
+    }
+}

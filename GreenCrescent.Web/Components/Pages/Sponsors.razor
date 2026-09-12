@@ -1,0 +1,413 @@
+﻿@page "/sponsors"
+@rendermode InteractiveServer
+@using System.ComponentModel.DataAnnotations
+@using GreenCrescent.Application.Features.Sponsors
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Staff")]
+@inject ISponsorService SponsorService
+@implements IDisposable
+
+<PageTitle>إدارة الكفلاء</PageTitle>
+
+<div class="sponsors-page" dir="rtl">
+    <header class="page-header">
+        <div>
+            <span class="section-label">إدارة الكفالات</span>
+            <h1>الكفلاء</h1>
+            <p>إضافة الكفلاء والبحث عنهم وتحديث معلوماتهم.</p>
+        </div>
+
+        <button class="primary-button" @onclick="StartCreate">
+            <span>＋</span>
+            إضافة كافل
+        </button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="alert success-alert">@message</div>
+    }
+
+    @if (!showForm &&
+     !string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert error-alert">@errorMessage</div>
+    }
+
+    <section class="content-grid">
+        <div class="list-card">
+            <div class="toolbar">
+                <div class="search-box">
+                    <span>⌕</span>
+                    <input value="@searchTerm"
+                           @oninput="SearchChanged"
+                           placeholder="ابحث بالاسم أو رقم الهاتف..." />
+                </div>
+
+                <label class="inactive-filter">
+                    <input type="checkbox"
+                           checked="@includeInactive"
+                           @onchange="IncludeInactiveChanged" />
+                    عرض الموقوفين
+                </label>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="empty-state">جاري تحميل البيانات...</div>
+            }
+            else if (sponsors.Count == 0)
+            {
+                <div class="empty-state">
+                    <strong>لا توجد نتائج</strong>
+                    <span>أضف كافلًا جديدًا أو غيّر عبارة البحث.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>اسم الكافل</th>
+                                <th>رقم الهاتف</th>
+                                <th>العنوان</th>
+                                <th>الكفالات الفعالة</th>
+                                <th>الحالة</th>
+                                <th>الإجراءات</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var sponsor in sponsors)
+                            {
+                                <tr class="@(!sponsor.IsActive ? "inactive-row" : null)">
+                                    <td>
+                                        <strong>@sponsor.Name</strong>
+                                    </td>
+
+                                    <td>@(sponsor.PhoneNumber ?? "—")</td>
+                                    <td>@(sponsor.Address ?? "—")</td>
+
+                                    <td>
+                                        <span class="count-badge">
+                                            @sponsor.ActiveSponsorshipsCount
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="status-badge @(sponsor.IsActive ? "active" : "inactive")">
+                                            @(sponsor.IsActive ? "فعال" : "موقوف")
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <div class="actions">
+                                            <button class="edit-button"
+                                                    @onclick="() => StartEdit(sponsor)">
+                                                تعديل
+                                            </button>
+
+                                            <button class="toggle-button"
+                                                    @onclick="() => SetActiveAsync(sponsor)">
+                                                @(sponsor.IsActive ? "إيقاف" : "تفعيل")
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+    </section>
+    <AppModal IsOpen="@showForm"
+              Title="@(editingId.HasValue
+                      ? "تعديل بيانات الكافل"
+                      : "إضافة كافل جديد")"
+              Label="إدارة الكفلاء"
+              OnClose="CloseForm">
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert error-alert">
+                @errorMessage
+            </div>
+        }
+
+        <EditForm Model="@form"
+                  OnValidSubmit="SaveAsync"
+                  FormName="SponsorForm"
+                  class="app-form">
+
+            <DataAnnotationsValidator />
+
+            <div class="form-field">
+                <label>
+                    اسم الكافل
+                    <span>*</span>
+                </label>
+
+                <InputText @bind-Value="form.Name"
+                           autocomplete="name"
+                           placeholder="اكتب الاسم الكامل" />
+
+                <ValidationMessage For="() => form.Name" />
+            </div>
+
+            <div class="form-field">
+                <label>رقم الهاتف</label>
+
+                <InputText @bind-Value="form.PhoneNumber"
+                           type="tel"
+                           inputmode="tel"
+                           autocomplete="tel"
+                           dir="ltr"
+                           placeholder="0790000000" />
+
+                <ValidationMessage For="() => form.PhoneNumber" />
+            </div>
+
+            <div class="form-field">
+                <label>العنوان</label>
+
+                <InputTextArea @bind-Value="form.Address"
+                               autocomplete="street-address"
+                               placeholder="اكتب عنوان الكافل" />
+
+                <ValidationMessage For="() => form.Address" />
+            </div>
+
+            <div class="form-actions">
+                <button class="primary-button"
+                        type="submit"
+                        disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <span>جاري الحفظ...</span>
+                    }
+                    else if (editingId.HasValue)
+                    {
+                        <span>حفظ التعديلات</span>
+                    }
+                    else
+                    {
+                        <span>إضافة الكافل</span>
+                    }
+                </button>
+
+                <button class="cancel-button"
+                        type="button"
+                        disabled="@isSaving"
+                        @onclick="CloseForm">
+                    إلغاء
+                </button>
+            </div>
+        </EditForm>
+    </AppModal>
+</div>
+
+@code {
+    private IReadOnlyList<SponsorDto> sponsors = [];
+    private SponsorFormModel form = new();
+
+    private int? editingId;
+    private string searchTerm = string.Empty;
+    private string? message;
+    private string? errorMessage;
+
+    private bool includeInactive;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool showForm;
+
+    private CancellationTokenSource? searchCancellation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            sponsors = await SponsorService.SearchAsync(
+                searchTerm,
+                includeInactive);
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SearchChanged(ChangeEventArgs args)
+    {
+        searchTerm = args.Value?.ToString() ?? string.Empty;
+
+        searchCancellation?.Cancel();
+        searchCancellation?.Dispose();
+        searchCancellation = new CancellationTokenSource();
+
+        try
+        {
+            await Task.Delay(
+                300,
+                searchCancellation.Token);
+
+            await LoadAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            // حدثت كتابة جديدة قبل انتهاء مهلة البحث.
+        }
+    }
+
+    private async Task IncludeInactiveChanged(ChangeEventArgs args)
+    {
+        includeInactive =
+            args.Value is bool value && value;
+
+        await LoadAsync();
+    }
+
+    private void StartCreate()
+    {
+        ClearMessages();
+        editingId = null;
+        form = new SponsorFormModel();
+        showForm = true;
+    }
+
+    private void StartEdit(SponsorDto sponsor)
+    {
+        ClearMessages();
+
+        editingId = sponsor.Id;
+
+        form = new SponsorFormModel
+        {
+            Name = sponsor.Name,
+            PhoneNumber = sponsor.PhoneNumber,
+            Address = sponsor.Address
+        };
+
+        showForm = true;
+    }
+
+    private async Task SaveAsync()
+    {
+        isSaving = true;
+        ClearMessages();
+
+        try
+        {
+            if (editingId.HasValue)
+            {
+                await SponsorService.UpdateAsync(
+                    new UpdateSponsorRequest(
+                        editingId.Value,
+                        form.Name,
+                        form.PhoneNumber,
+                        form.Address));
+
+                message = "تم تحديث بيانات الكافل بنجاح.";
+            }
+            else
+            {
+                await SponsorService.CreateAsync(
+                    new CreateSponsorRequest(
+                        form.Name,
+                        form.PhoneNumber,
+                        form.Address));
+
+                message = "تمت إضافة الكافل بنجاح.";
+            }
+
+            showForm = false;
+            editingId = null;
+            form = new SponsorFormModel();
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task SetActiveAsync(SponsorDto sponsor)
+    {
+        ClearMessages();
+
+        try
+        {
+            await SponsorService.SetActiveAsync(
+                sponsor.Id,
+                !sponsor.IsActive);
+
+            message = sponsor.IsActive
+                ? "تم إيقاف الكافل."
+                : "تم تفعيل الكافل.";
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private void CloseForm()
+    {
+        showForm = false;
+        editingId = null;
+        form = new SponsorFormModel();
+        errorMessage = null;
+    }
+
+    private void ClearMessages()
+    {
+        message = null;
+        errorMessage = null;
+    }
+
+    public void Dispose()
+    {
+        searchCancellation?.Cancel();
+        searchCancellation?.Dispose();
+    }
+
+    private sealed class SponsorFormModel
+    {
+        [Required(ErrorMessage = "اسم الكافل مطلوب.")]
+        [StringLength(
+            200,
+            ErrorMessage = "اسم الكافل يجب ألا يتجاوز 200 حرف.")]
+        public string Name { get; set; } = string.Empty;
+
+        [StringLength(
+            30,
+            ErrorMessage = "رقم الهاتف يجب ألا يتجاوز 30 حرفًا.")]
+        public string? PhoneNumber { get; set; }
+
+        [StringLength(
+            500,
+            ErrorMessage = "العنوان يجب ألا يتجاوز 500 حرف.")]
+        public string? Address { get; set; }
+    }
+}
