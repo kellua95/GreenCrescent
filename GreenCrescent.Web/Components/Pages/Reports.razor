@@ -4,6 +4,8 @@
 @using GreenCrescent.Application.Features.Reports
 @using GreenCrescent.Core.Enums
 @using Microsoft.AspNetCore.Authorization
+@using GreenCrescent.Application.Features.Sponsors
+@using GreenCrescent.Application.Features.Beneficiaries
 @attribute [Authorize(Roles = "Admin,Staff,Viewer")]
 @inject IReportService ReportService
 @inject IJSRuntime JS
@@ -52,6 +54,20 @@
                 @onclick="() => ChangeModeAsync(ReportMode.Expired)">
             انتهاء الكفالات
         </button>
+        <button class="@TabClass(ReportMode.Sponsors)"
+                @onclick="() => ChangeModeAsync(ReportMode.Sponsors)">
+            سجل الكفلاء
+        </button>
+
+        <button class="@TabClass(ReportMode.Beneficiaries)"
+                @onclick="() => ChangeModeAsync(ReportMode.Beneficiaries)">
+            سجل المكفولين
+        </button>
+
+        <button class="@TabClass(ReportMode.BeneficiaryArchive)"
+                @onclick="() => ChangeModeAsync(ReportMode.BeneficiaryArchive)">
+            أرشيف المكفولين
+        </button>
 
         <button class="@TabClass(ReportMode.Financial)"
                 @onclick="() => ChangeModeAsync(ReportMode.Financial)">
@@ -65,7 +81,39 @@
     </nav>
 
     <section class="filter-card no-print">
-        @if (mode is ReportMode.General or ReportMode.Detailed)
+        @if (mode == ReportMode.Sponsors)
+        {
+            <div class="search-box">
+                <span>⌕</span>
+
+                <input value="@searchTerm"
+                       @oninput="SearchChanged"
+                       placeholder="اسم الكافل أو الهاتف أو العنوان..." />
+            </div>
+
+            <div class="date-filter">
+                <label>حالة الكافل</label>
+
+                <select value="@SponsorStatusValue"
+                        @onchange="SponsorStatusChanged">
+                    <option value="all">الكل</option>
+                    <option value="active">الفعّالون</option>
+                    <option value="inactive">الموقوفون</option>
+                </select>
+            </div>
+        }
+        else if (mode is ReportMode.Beneficiaries or
+                 ReportMode.BeneficiaryArchive)
+        {
+            <div class="search-box">
+                <span>⌕</span>
+
+                <input value="@searchTerm"
+                       @oninput="SearchChanged"
+                       placeholder="اسم المكفول أو رقم الملف أو الهاتف..." />
+            </div>
+        }
+        else if (mode is ReportMode.General or ReportMode.Detailed)
         {
             <div class="search-box">
                 <span>⌕</span>
@@ -160,6 +208,157 @@
         {
             <div class="empty-state">لا توجد بيانات مطابقة.</div>
         }
+            else if (mode == ReportMode.Sponsors)
+            {
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("Name")'>
+                                        اسم الكافل @SortIndicator("Name")
+                                    </button>
+                                </th>
+
+                                <th>رقم الهاتف</th>
+                                <th>العنوان</th>
+
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("ActiveSponsorshipsCount")'>
+                                        الكفالات الفعالة
+                                        @SortIndicator("ActiveSponsorshipsCount")
+                                    </button>
+                                </th>
+
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("IsActive")'>
+                                        الحالة @SortIndicator("IsActive")
+                                    </button>
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var item in PagedSponsorRows)
+                            {
+                                <tr class="@(!item.IsActive ? "inactive-row" : null)">
+                                    <td><strong>@item.Name</strong></td>
+                                    <td>@(item.PhoneNumber ?? "—")</td>
+                                    <td>@(item.Address ?? "—")</td>
+
+                                    <td>
+                                        <span class="count-badge">
+                                            @item.ActiveSponsorshipsCount
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        <span class="status-badge @(item.IsActive ? "active" : "inactive")">
+                                            @(item.IsActive ? "فعّال" : "موقوف")
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (mode is ReportMode.Beneficiaries or
+                     ReportMode.BeneficiaryArchive)
+            {
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("FileNumber")'>
+                                        رقم الملف @SortIndicator("FileNumber")
+                                    </button>
+                                </th>
+
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("Name")'>
+                                        اسم المكفول @SortIndicator("Name")
+                                    </button>
+                                </th>
+
+                                <th>رقم الهاتف</th>
+                                <th>تاريخ الميلاد</th>
+
+                                @if (mode == ReportMode.Beneficiaries)
+                                {
+                                    <th>
+                                        <button class="sort-button"
+                                                @onclick='() => SortBy("ActiveSponsorshipsCount")'>
+                                            الكفالات الفعالة
+                                            @SortIndicator("ActiveSponsorshipsCount")
+                                        </button>
+                                    </th>
+
+                                    <th>الكافل</th>
+                                    <th>الحالة</th>
+                                }
+                                else
+                                {
+                                    <th>سبب الأرشفة</th>
+                                }
+
+                                <th>ملاحظات</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var item in PagedBeneficiaryRows)
+                            {
+                                <tr>
+                                    <td>
+                                        <span class="count-badge">
+                                            @item.FileNumber
+                                        </span>
+                                    </td>
+
+                                    <td><strong>@item.Name</strong></td>
+                                    <td>@(item.PhoneNumber ?? "—")</td>
+
+                                    <td>
+                                        @(item.DateOfBirth?.ToString("yyyy/MM/dd") ?? "—")
+                                    </td>
+
+                                    @if (mode == ReportMode.Beneficiaries)
+                                    {
+                                        <td>
+                                            <span class="count-badge">
+                                                @item.ActiveSponsorshipsCount
+                                            </span>
+                                        </td>
+
+                                        <td>
+                                            @(item.ActiveSponsorName ?? "—")
+                                        </td>
+
+                                        <td>
+                                            @GetBeneficiaryStatus(item.Status)
+                                        </td>
+                                    }
+                                    else
+                                    {
+                                        <td>
+                                            @(item.ArchiveReason ?? "—")
+                                        </td>
+                                    }
+
+                                    <td>@(item.Notes ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
         else if (mode is ReportMode.General or ReportMode.Expired)
         {
             <div class="table-container">
@@ -440,7 +639,7 @@
             {
                         <button class="@(pageNumber == currentPage ? "active" : null)"
                                 @onclick="() => GoToPage(pageNumber)">
-                            @pageNumber
+                        @pageNumber 
                 </button>
             }
 
@@ -455,9 +654,14 @@
 </div>
 
 @code {
+
     private IReadOnlyList<GeneralSponsorshipReportDto> generalRows = [];
     private IReadOnlyList<DetailedSponsorshipReportDto> detailedRows = [];
     private IReadOnlyList<FinancialEntryDto> financialRows = [];
+    private IReadOnlyList<SponsorDto> sponsorRows = [];
+    private IReadOnlyList<BeneficiaryDto> beneficiaryRows = [];
+
+    private bool? sponsorIsActive;
 
     private ReportMode mode = ReportMode.General;
     private string searchTerm = string.Empty;
@@ -526,6 +730,9 @@
         ReportMode.General => "التقرير العام للكفالات",
         ReportMode.Detailed => "التقرير المفصل للكفالات",
         ReportMode.Expired => "كشف انتهاء الكفالات",
+        ReportMode.Sponsors => "سجل الكفلاء",
+        ReportMode.Beneficiaries => "سجل المكفولين",
+        ReportMode.BeneficiaryArchive => "أرشيف المكفولين",
         ReportMode.Financial => "تقرير الإدخال المالي",
         ReportMode.Donations => "كشف التبرعات",
         _ => "التقرير"
@@ -533,6 +740,11 @@
 
     private int ResultCount => mode switch
     {
+        ReportMode.Sponsors => sponsorRows.Count,
+
+        ReportMode.Beneficiaries or
+        ReportMode.BeneficiaryArchive =>
+            beneficiaryRows.Count,
         ReportMode.Detailed => detailedRows.Count,
         ReportMode.Financial or ReportMode.Donations =>
             financialRows.Count,
@@ -588,6 +800,8 @@
             generalRows = [];
             detailedRows = [];
             financialRows = [];
+            sponsorRows = [];
+            beneficiaryRows = [];
 
             switch (mode)
             {
@@ -624,6 +838,26 @@
                             fromDate,
                             toDate,
                             searchTerm);
+                    break;
+                case ReportMode.Sponsors:
+                    sponsorRows =
+                        await ReportService.GetSponsorsAsync(
+                            searchTerm,
+                            sponsorIsActive);
+                    break;
+
+                case ReportMode.Beneficiaries:
+                    beneficiaryRows =
+                        await ReportService.GetBeneficiariesAsync(
+                            searchTerm,
+                            archivedOnly: false);
+                    break;
+
+                case ReportMode.BeneficiaryArchive:
+                    beneficiaryRows =
+                        await ReportService.GetBeneficiariesAsync(
+                            searchTerm,
+                            archivedOnly: true);
                     break;
             }
             currentPage = Math.Clamp(
@@ -696,7 +930,10 @@
         Detailed,
         Expired,
         Financial,
-        Donations
+        Donations,
+        Sponsors,
+        Beneficiaries,
+        BeneficiaryArchive
     }
     private async Task ExportExcelAsync()
     {
@@ -982,4 +1219,113 @@
         currentPage = 1;
         await LoadAsync();
     }
+
+    private IEnumerable<SponsorDto> SortedSponsorRows =>
+    (sortColumn, sortAscending) switch
+    {
+        ("Name", true) =>
+            sponsorRows.OrderBy(item => item.Name),
+
+        ("Name", false) =>
+            sponsorRows.OrderByDescending(item => item.Name),
+
+        ("ActiveSponsorshipsCount", true) =>
+            sponsorRows.OrderBy(item =>
+                item.ActiveSponsorshipsCount),
+
+        ("ActiveSponsorshipsCount", false) =>
+            sponsorRows.OrderByDescending(item =>
+                item.ActiveSponsorshipsCount),
+
+        ("IsActive", true) =>
+            sponsorRows.OrderBy(item => item.IsActive),
+
+        ("IsActive", false) =>
+            sponsorRows.OrderByDescending(item => item.IsActive),
+
+        _ => sponsorRows.OrderBy(item => item.Name)
+    };
+
+    private IEnumerable<BeneficiaryDto>
+        SortedBeneficiaryRows =>
+            (sortColumn, sortAscending) switch
+            {
+                ("FileNumber", true) =>
+                    beneficiaryRows.OrderBy(item =>
+                        item.FileNumber),
+
+                ("FileNumber", false) =>
+                    beneficiaryRows.OrderByDescending(item =>
+                        item.FileNumber),
+
+                ("Name", true) =>
+                    beneficiaryRows.OrderBy(item =>
+                        item.Name),
+
+                ("Name", false) =>
+                    beneficiaryRows.OrderByDescending(item =>
+                        item.Name),
+
+                ("ActiveSponsorshipsCount", true) =>
+                    beneficiaryRows.OrderBy(item =>
+                        item.ActiveSponsorshipsCount),
+
+                ("ActiveSponsorshipsCount", false) =>
+                    beneficiaryRows.OrderByDescending(item =>
+                        item.ActiveSponsorshipsCount),
+
+                _ => beneficiaryRows.OrderBy(item =>
+                    item.FileNumber)
+            };
+
+    private IEnumerable<SponsorDto> PagedSponsorRows =>
+        SortedSponsorRows
+            .Skip((currentPage - 1) * pageSize)
+            .Take(pageSize);
+
+    private IEnumerable<BeneficiaryDto>
+        PagedBeneficiaryRows =>
+            SortedBeneficiaryRows
+                .Skip((currentPage - 1) * pageSize)
+                .Take(pageSize);
+
+    private string SponsorStatusValue =>
+        sponsorIsActive switch
+        {
+            true => "active",
+            false => "inactive",
+            null => "all"
+        };
+    private async Task SponsorStatusChanged(
+    ChangeEventArgs args)
+    {
+        sponsorIsActive =
+            args.Value?.ToString() switch
+            {
+                "active" => true,
+                "inactive" => false,
+                _ => null
+            };
+
+        currentPage = 1;
+        await LoadAsync();
+    }
+
+    private static string GetBeneficiaryStatus(
+    BeneficiaryStatus status) => status switch
+    {
+        BeneficiaryStatus.WaitingForSponsor =>
+            "بانتظار كافل",
+
+        BeneficiaryStatus.Sponsored =>
+            "مكفول",
+
+        BeneficiaryStatus.NoLongerEligible =>
+            "غير مستحق",
+
+        BeneficiaryStatus.Suspended =>
+            "موقوف",
+
+        _ => status.ToString()
+    };
 }

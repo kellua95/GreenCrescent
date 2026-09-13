@@ -49,12 +49,13 @@ namespace GreenCrescent.Infrastructure.Persistence.Configurations
                 .HasForeignKey(x => x.BeneficiaryId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // يمنع وجود كفالتين فعالتين للمكفول نفسه.
-            builder.HasIndex(x => x.BeneficiaryId)
-                .IsUnique()
-                .HasFilter("\"Status\" = 1")
-                .HasDatabaseName(
-                    "IX_Sponsorships_OneActivePerBeneficiary");
+            // يسرّع البحث عن كفالات المكفول حسب الحالة
+            // دون منع وجود أكثر من كفالة فعالة.
+            builder.HasIndex(x => new
+            {
+                x.BeneficiaryId,
+                x.Status
+            });
 
             builder.HasIndex(x => new { x.SponsorId, x.Status });
             builder.HasIndex(x => x.EndDate);

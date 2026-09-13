@@ -1,4 +1,6 @@
 ﻿using GreenCrescent.Application.Features.FinancialEntries;
+using GreenCrescent.Application.Features.Beneficiaries;
+using GreenCrescent.Application.Features.Sponsors;
 
 namespace GreenCrescent.Application.Features.Reports;
 
@@ -32,5 +34,17 @@ public interface IReportService
             DateOnly? fromDate,
             DateOnly? toDate,
             string? searchTerm,
+            CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<SponsorDto>>
+    GetSponsorsAsync(
+        string? searchTerm,
+        bool? isActive,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<BeneficiaryDto>>
+        GetBeneficiariesAsync(
+            string? searchTerm,
+            bool archivedOnly,
             CancellationToken cancellationToken = default);
 }

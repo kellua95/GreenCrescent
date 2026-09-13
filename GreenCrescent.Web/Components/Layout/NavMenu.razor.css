@@ -8,24 +8,20 @@
     .nav-brand a {
         display: flex;
         align-items: center;
-        gap: 12px;
-        height: 100%;
+        gap: 0.75rem;
         color: white;
         text-decoration: none;
     }
 
 .brand-logo {
-    display: inline-flex;
-    flex: 0 0 46px;
-    align-items: center;
-    justify-content: center;
-    width: 46px;
-    height: 46px;
-    color: #087443;
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    object-fit: cover;
     background: white;
+    border: 3px solid rgb(255 255 255 / 35%);
     border-radius: 50%;
-    font-size: 27px;
-    font-weight: 900;
+    box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
 }
 
 .brand-content {

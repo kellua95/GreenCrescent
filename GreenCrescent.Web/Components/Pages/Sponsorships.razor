@@ -115,6 +115,51 @@
                         </tbody>
                     </table>
                 </div>
+                <nav class="pagination-bar"
+                     aria-label="صفحات الكفالات">
+
+                    <div class="page-size">
+                        <label for="sponsorship-page-size">
+                            عدد السجلات:
+                        </label>
+
+                        <select id="sponsorship-page-size"
+                                value="@pageSize"
+                                @onchange="PageSizeChanged">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+
+                    <div class="page-information">
+                        عرض @FirstVisibleRow إلى @LastVisibleRow
+                        من أصل @totalCount كفالة
+                    </div>
+
+                    <div class="page-buttons">
+                        <button type="button"
+                                @onclick="PreviousPageAsync"
+                                disabled="@(currentPage <= 1)">
+                            السابق
+                        </button>
+
+                        @foreach (var pageNumber in VisiblePageNumbers)
+                        {
+                            <button type="button"
+                                    class="@(pageNumber == currentPage ? "active" : null)"
+                                    @onclick="() => GoToPageAsync(pageNumber)">
+                                @pageNumber
+                            </button>
+                        }
+
+                        <button type="button"
+                                @onclick="NextPageAsync"
+                                disabled="@(currentPage >= TotalPages)">
+                            التالي
+                        </button>
+                    </div>
+                </nav>
             }
         </div>
 
@@ -353,6 +398,48 @@
     private IReadOnlyList<SponsorDto> sponsorResults = [];
     private IReadOnlyList<BeneficiaryDto> beneficiaryResults = [];
 
+    private int totalCount;
+    private int currentPage = 1;
+    private int pageSize = 10;
+
+    private int TotalPages =>
+        totalCount == 0
+            ? 1
+            : (int)Math.Ceiling(
+                totalCount / (double)pageSize);
+
+    private int FirstVisibleRow =>
+        totalCount == 0
+            ? 0
+            : ((currentPage - 1) * pageSize) + 1;
+
+    private int LastVisibleRow =>
+        Math.Min(
+            currentPage * pageSize,
+            totalCount);
+
+    private IEnumerable<int> VisiblePageNumbers
+    {
+        get
+        {
+            var first = Math.Max(
+                1,
+                currentPage - 2);
+
+            var last = Math.Min(
+                TotalPages,
+                first + 4);
+
+            first = Math.Max(
+                1,
+                last - 4);
+
+            return Enumerable.Range(
+                first,
+                last - first + 1);
+        }
+    }
+
     private SponsorDto? selectedSponsor;
     private BeneficiaryDto? selectedBeneficiary;
 
@@ -384,16 +471,40 @@
     private async Task LoadSponsorshipsAsync()
     {
         isLoading = true;
+        errorMessage = null;
 
         try
         {
-            sponsorships = await SponsorshipService.SearchAsync(
-                listSearch,
-                activeOnly: true);
+            var result =
+                await SponsorshipService.SearchPageAsync(
+                    listSearch,
+                    activeOnly: true,
+                    currentPage,
+                    pageSize);
+
+            sponsorships = result.Items;
+            totalCount = result.TotalCount;
+
+            if (currentPage > result.TotalPages)
+            {
+                currentPage = result.TotalPages;
+
+                result =
+                    await SponsorshipService.SearchPageAsync(
+                        listSearch,
+                        activeOnly: true,
+                        currentPage,
+                        pageSize);
+
+                sponsorships = result.Items;
+                totalCount = result.TotalCount;
+            }
         }
         catch (Exception exception)
         {
             errorMessage = exception.Message;
+            sponsorships = [];
+            totalCount = 0;
         }
         finally
         {
@@ -401,9 +512,15 @@
         }
     }
 
-    private async Task SearchListChanged(ChangeEventArgs args)
+    private async Task SearchListChanged(
+        ChangeEventArgs args)
     {
-        listSearch = args.Value?.ToString() ?? string.Empty;
+        listSearch =
+            args.Value?.ToString() ??
+            string.Empty;
+
+        currentPage = 1;
+
         await LoadSponsorshipsAsync();
     }
 
@@ -437,9 +554,14 @@
 
         beneficiaryResults = results
             .Where(item =>
-                item.Status ==
-                BeneficiaryStatus.WaitingForSponsor &&
-                !item.ActiveSponsorshipId.HasValue)
+                !item.IsArchived &&
+                (
+                    item.Status ==
+                        BeneficiaryStatus.WaitingForSponsor ||
+                    item.Status ==
+                        BeneficiaryStatus.Sponsored
+                ) &&
+                item.ActiveSponsorshipsCount < 3)
             .ToList();
     }
 
@@ -591,5 +713,51 @@
             1000,
             ErrorMessage = "الملاحظات يجب ألا تتجاوز 1000 حرف.")]
         public string? Notes { get; set; }
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        var newPage = Math.Clamp(
+            page,
+            1,
+            TotalPages);
+
+        if (newPage == currentPage)
+        {
+            return;
+        }
+
+        currentPage = newPage;
+        await LoadSponsorshipsAsync();
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        await GoToPageAsync(
+            currentPage - 1);
+    }
+
+    private async Task NextPageAsync()
+    {
+        await GoToPageAsync(
+            currentPage + 1);
+    }
+
+    private async Task PageSizeChanged(
+        ChangeEventArgs args)
+    {
+        if (!int.TryParse(
+                args.Value?.ToString(),
+                out var newPageSize) ||
+            newPageSize is not
+                (10 or 25 or 50))
+        {
+            return;
+        }
+
+        pageSize = newPageSize;
+        currentPage = 1;
+
+        await LoadSponsorshipsAsync();
     }
 }

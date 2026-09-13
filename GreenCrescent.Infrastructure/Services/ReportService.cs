@@ -1,5 +1,7 @@
-﻿using GreenCrescent.Application.Features.FinancialEntries;
+﻿using GreenCrescent.Application.Features.Beneficiaries;
+using GreenCrescent.Application.Features.FinancialEntries;
 using GreenCrescent.Application.Features.Reports;
+using GreenCrescent.Application.Features.Sponsors;
 using GreenCrescent.Core.Enums;
 using GreenCrescent.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -145,6 +147,132 @@ public sealed class ReportService(
 
         return rows;
     }
+
+    public async Task<IReadOnlyList<SponsorDto>>
+    GetSponsorsAsync(
+        string? searchTerm,
+        bool? isActive,
+        CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Sponsors
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(item =>
+                item.IsActive == isActive.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim();
+
+            query = query.Where(item =>
+                EF.Functions.ILike(
+                    item.Name,
+                    $"%{term}%") ||
+                (
+                    item.PhoneNumber != null &&
+                    EF.Functions.ILike(
+                        item.PhoneNumber,
+                        $"%{term}%")
+                ) ||
+                (
+                    item.Address != null &&
+                    EF.Functions.ILike(
+                        item.Address,
+                        $"%{term}%")
+                ));
+        }
+
+        return await query
+            .OrderBy(item => item.Name)
+            .Select(item => new SponsorDto(
+                item.Id,
+                item.Name,
+                item.PhoneNumber,
+                item.Address,
+                item.IsActive,
+                item.Sponsorships.Count(sponsorship =>
+                    sponsorship.Status ==
+                    SponsorshipStatus.Active)))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<BeneficiaryDto>>
+        GetBeneficiariesAsync(
+            string? searchTerm,
+            bool archivedOnly,
+            CancellationToken cancellationToken = default)
+    {
+        var query = dbContext.Beneficiaries
+            .AsNoTracking()
+            .Where(item =>
+                item.IsArchived == archivedOnly);
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim();
+
+            var isFileNumber =
+                int.TryParse(term, out var fileNumber);
+
+            query = query.Where(item =>
+                EF.Functions.ILike(
+                    item.Name,
+                    $"%{term}%") ||
+                (
+                    item.PhoneNumber != null &&
+                    EF.Functions.ILike(
+                        item.PhoneNumber,
+                        $"%{term}%")
+                ) ||
+                (
+                    isFileNumber &&
+                    item.FileNumber == fileNumber
+                ));
+        }
+
+        return await query
+            .OrderBy(item => item.FileNumber)
+            .Select(item => new BeneficiaryDto(
+                item.Id,
+                item.FileNumber,
+                item.Name,
+                item.PhoneNumber,
+                item.DateOfBirth,
+                item.Status,
+                item.IsArchived,
+                item.ArchiveReason,
+                item.Notes,
+
+                item.Sponsorships
+                    .Where(sponsorship =>
+                        sponsorship.Status ==
+                        SponsorshipStatus.Active)
+                    .OrderBy(sponsorship =>
+                        sponsorship.Id)
+                    .Select(sponsorship =>
+                        (int?)sponsorship.Id)
+                    .FirstOrDefault(),
+
+                item.Sponsorships
+                    .Where(sponsorship =>
+                        sponsorship.Status ==
+                        SponsorshipStatus.Active)
+                    .OrderBy(sponsorship =>
+                        sponsorship.Id)
+                    .Select(sponsorship =>
+                        sponsorship.Sponsor.Name)
+                    .FirstOrDefault(),
+
+                item.Sponsorships.Count(sponsorship =>
+                    sponsorship.Status ==
+                    SponsorshipStatus.Active)))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<GeneralSponsorshipReportDto>>
         GetExpiredSponsorshipsAsync(
             DateOnly selectedDate,

@@ -74,7 +74,16 @@
                                 <th>اسم المكفول</th>
                                 <th>الهاتف</th>
                                 <th>تاريخ الميلاد</th>
-                                <th>الكافل الحالي</th>
+                                <th>
+                                    <button type="button"
+                                            class="sort-header"
+                                            @onclick="ToggleSponsorshipCountSort">
+                                        عدد الكفالات
+                                        <span aria-hidden="true">
+                                            @(sponsorshipCountDescending ? "↓" : "↑")
+                                        </span>
+                                    </button>
+                                </th>
                                 <th>الحالة</th>
                                 <th>الإجراءات</th>
                             </tr>
@@ -98,18 +107,13 @@
                                     </td>
 
                                     <td>
-                                        @if (beneficiary.ActiveSponsorName is not null)
-                                        {
-                                            <strong>@beneficiary.ActiveSponsorName</strong>
-                                        }
-                                        else
-                                        {
-                                            <span class="muted-text">لا يوجد كافل</span>
-                                        }
+                                        <span class="sponsorship-count-badge @GetSponsorshipCountClass(beneficiary.ActiveSponsorshipsCount)">
+                                            @beneficiary.ActiveSponsorshipsCount / 3
+                                        </span>
                                     </td>
 
                                     <td>
-                                        @if (beneficiary.ActiveSponsorshipId.HasValue)
+                                        @if (beneficiary.ActiveSponsorshipsCount > 0)
                                         {
                                             <span class="status-badge active">
                                                 مكفول
@@ -165,6 +169,51 @@
                         </tbody>
                     </table>
                 </div>
+                <nav class="pagination-bar"
+                     aria-label="صفحات المكفولين">
+
+                    <div class="page-size">
+                        <label for="beneficiary-page-size">
+                            عدد السجلات:
+                        </label>
+
+                        <select id="beneficiary-page-size"
+                                value="@pageSize"
+                                @onchange="PageSizeChanged">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+
+                    <div class="page-information">
+                        عرض @FirstVisibleRow إلى @LastVisibleRow
+                        من أصل @totalCount مكفول
+                    </div>
+
+                    <div class="page-buttons">
+                        <button type="button"
+                                @onclick="PreviousPageAsync"
+                                disabled="@(currentPage <= 1)">
+                            السابق
+                        </button>
+
+                        @foreach (var pageNumber in VisiblePageNumbers)
+                        {
+                            <button type="button"
+                                    class="@(pageNumber == currentPage ? "active" : null)"
+                                    @onclick="() => GoToPageAsync(pageNumber)">
+                                @pageNumber
+                            </button>
+                        }
+
+                        <button type="button"
+                                @onclick="NextPageAsync"
+                                disabled="@(currentPage >= TotalPages)">
+                            التالي
+                        </button>
+                    </div>
+                </nav>
             }
         </div>
 
@@ -172,8 +221,8 @@
     </section>
     <AppModal IsOpen="@showForm"
               Title="@(editingId.HasValue
-                      ? "تعديل بيانات المكفول"
-                      : "إضافة مكفول جديد")"
+                              ? "تعديل بيانات المكفول"
+                              : "إضافة مكفول جديد")"
               Label="إدارة المكفولين"
               OnClose="CloseForm">
 
@@ -277,7 +326,7 @@
     </AppModal>
 
     <AppModal IsOpen="@(showArchiveForm &&
-                           beneficiaryToArchive is not null)"
+                                   beneficiaryToArchive is not null)"
               Title="أرشفة المكفول"
               Label="تأكيد الإجراء"
               OnClose="CloseArchiveForm">
@@ -334,6 +383,50 @@
 
 @code {
     private IReadOnlyList<BeneficiaryDto> beneficiaries = [];
+    private bool sponsorshipCountDescending = true;
+
+    private int totalCount;
+    private int currentPage = 1;
+    private int pageSize = 10;
+
+    private int TotalPages =>
+        totalCount == 0
+            ? 1
+            : (int)Math.Ceiling(
+                totalCount / (double)pageSize);
+
+    private int FirstVisibleRow =>
+        totalCount == 0
+            ? 0
+            : ((currentPage - 1) * pageSize) + 1;
+
+    private int LastVisibleRow =>
+        Math.Min(
+            currentPage * pageSize,
+            totalCount);
+
+    private IEnumerable<int> VisiblePageNumbers
+    {
+        get
+        {
+            var first = Math.Max(
+                1,
+                currentPage - 2);
+
+            var last = Math.Min(
+                TotalPages,
+                first + 4);
+
+            first = Math.Max(
+                1,
+                last - 4);
+
+            return Enumerable.Range(
+                first,
+                last - first + 1);
+        }
+    }
+
     private BeneficiaryFormModel form = new();
 
     private int? editingId;
@@ -357,6 +450,24 @@
         await LoadAsync();
     }
 
+    private async Task ToggleSponsorshipCountSort()
+    {
+        sponsorshipCountDescending =
+            !sponsorshipCountDescending;
+
+        currentPage = 1;
+
+        await LoadAsync();
+    }
+
+    private static string GetSponsorshipCountClass(
+        int count) => count switch
+        {
+            >= 3 => "full",
+            > 0 => "partial",
+            _ => "empty"
+        };
+
     private async Task LoadAsync()
     {
         isLoading = true;
@@ -364,20 +475,44 @@
 
         try
         {
-            beneficiaries = await BeneficiaryService.SearchAsync(
-                searchTerm,
-                includeArchived);
+            var result =
+                await BeneficiaryService.SearchPageAsync(
+                    searchTerm,
+                    includeArchived,
+                    sponsorshipCountDescending,
+                    currentPage,
+                    pageSize);
+
+            beneficiaries = result.Items;
+            totalCount = result.TotalCount;
+
+            if (currentPage > result.TotalPages)
+            {
+                currentPage = result.TotalPages;
+
+                result =
+                    await BeneficiaryService.SearchPageAsync(
+                        searchTerm,
+                        includeArchived,
+                        sponsorshipCountDescending,
+                        currentPage,
+                        pageSize);
+
+                beneficiaries = result.Items;
+                totalCount = result.TotalCount;
+            }
         }
         catch (Exception exception)
         {
             errorMessage = exception.Message;
+            beneficiaries = [];
+            totalCount = 0;
         }
         finally
         {
             isLoading = false;
         }
     }
-
     private static string GetStatusClass(
     BeneficiaryStatus status)
     {
@@ -482,6 +617,7 @@
         try
         {
             await Task.Delay(300, searchCancellation.Token);
+            currentPage = 1;
             await LoadAsync();
         }
         catch (OperationCanceledException)
@@ -489,9 +625,14 @@
         }
     }
 
-    private async Task IncludeArchivedChanged(ChangeEventArgs args)
+    private async Task IncludeArchivedChanged(
+        ChangeEventArgs args)
     {
-        includeArchived = args.Value is bool value && value;
+        includeArchived =
+            args.Value is bool value &&
+            value;
+
+        currentPage = 1;
         await LoadAsync();
     }
 
@@ -641,5 +782,51 @@
         [StringLength(1000,
             ErrorMessage = "الملاحظات يجب ألا تتجاوز 1000 حرف.")]
         public string? Notes { get; set; }
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        var newPage = Math.Clamp(
+            page,
+            1,
+            TotalPages);
+
+        if (newPage == currentPage)
+        {
+            return;
+        }
+
+        currentPage = newPage;
+        await LoadAsync();
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        await GoToPageAsync(
+            currentPage - 1);
+    }
+
+    private async Task NextPageAsync()
+    {
+        await GoToPageAsync(
+            currentPage + 1);
+    }
+
+    private async Task PageSizeChanged(
+        ChangeEventArgs args)
+    {
+        if (!int.TryParse(
+                args.Value?.ToString(),
+                out var newPageSize) ||
+            newPageSize is not
+                (10 or 25 or 50))
+        {
+            return;
+        }
+
+        pageSize = newPageSize;
+        currentPage = 1;
+
+        await LoadAsync();
     }
 }

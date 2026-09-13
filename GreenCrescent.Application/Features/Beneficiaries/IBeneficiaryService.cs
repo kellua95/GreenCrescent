@@ -1,4 +1,5 @@
-﻿using GreenCrescent.Core.Enums;
+﻿using GreenCrescent.Application.Common.Models;
+using GreenCrescent.Core.Enums;
 
 namespace GreenCrescent.Application.Features.Beneficiaries;
 
@@ -29,6 +30,13 @@ public interface IBeneficiaryService
     Task ArchiveAsync(
     int id,
     string reason,
+    CancellationToken cancellationToken = default);
+    Task<PagedResult<BeneficiaryDto>> SearchPageAsync(
+    string? searchTerm,
+    bool includeArchived,
+    bool sponsorshipCountDescending,
+    int pageNumber,
+    int pageSize,
     CancellationToken cancellationToken = default);
 
     Task RestoreAsync(

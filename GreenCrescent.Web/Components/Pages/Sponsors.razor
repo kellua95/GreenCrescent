@@ -119,6 +119,51 @@
                         </tbody>
                     </table>
                 </div>
+                <nav class="pagination-bar"
+                     aria-label="صفحات الكفلاء">
+
+                    <div class="page-size">
+                        <label for="sponsor-page-size">
+                            عدد السجلات:
+                        </label>
+
+                        <select id="sponsor-page-size"
+                                value="@pageSize"
+                                @onchange="PageSizeChanged">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+
+                    <div class="page-information">
+                        عرض @FirstVisibleRow إلى @LastVisibleRow
+                        من أصل @totalCount كافل
+                    </div>
+
+                    <div class="page-buttons">
+                        <button type="button"
+                                @onclick="PreviousPageAsync"
+                                disabled="@(currentPage <= 1)">
+                            السابق
+                        </button>
+
+                        @foreach (var pageNumber in VisiblePageNumbers)
+                        {
+                            <button type="button"
+                                    class="@(pageNumber == currentPage ? "active" : null)"
+                                    @onclick="() => GoToPageAsync(pageNumber)">
+                                @pageNumber
+                            </button>
+                        }
+
+                        <button type="button"
+                                @onclick="NextPageAsync"
+                                disabled="@(currentPage >= TotalPages)">
+                            التالي
+                        </button>
+                    </div>
+                </nav>
             }
         </div>
 
@@ -213,6 +258,48 @@
     private IReadOnlyList<SponsorDto> sponsors = [];
     private SponsorFormModel form = new();
 
+    private int totalCount;
+private int currentPage = 1;
+private int pageSize = 10;
+
+private int TotalPages =>
+    totalCount == 0
+        ? 1
+        : (int)Math.Ceiling(
+            totalCount / (double)pageSize);
+
+private int FirstVisibleRow =>
+    totalCount == 0
+        ? 0
+        : ((currentPage - 1) * pageSize) + 1;
+
+private int LastVisibleRow =>
+    Math.Min(
+        currentPage * pageSize,
+        totalCount);
+
+private IEnumerable<int> VisiblePageNumbers
+{
+    get
+    {
+        var first = Math.Max(
+            1,
+            currentPage - 2);
+
+        var last = Math.Min(
+            TotalPages,
+            first + 4);
+
+        first = Math.Max(
+            1,
+            last - 4);
+
+        return Enumerable.Range(
+            first,
+            last - first + 1);
+    }
+}
+
     private int? editingId;
     private string searchTerm = string.Empty;
     private string? message;
@@ -237,20 +324,42 @@
 
         try
         {
-            sponsors = await SponsorService.SearchAsync(
-                searchTerm,
-                includeInactive);
+            var result =
+                await SponsorService.SearchPageAsync(
+                    searchTerm,
+                    includeInactive,
+                    currentPage,
+                    pageSize);
+
+            sponsors = result.Items;
+            totalCount = result.TotalCount;
+
+            if (currentPage > result.TotalPages)
+            {
+                currentPage = result.TotalPages;
+
+                result =
+                    await SponsorService.SearchPageAsync(
+                        searchTerm,
+                        includeInactive,
+                        currentPage,
+                        pageSize);
+
+                sponsors = result.Items;
+                totalCount = result.TotalCount;
+            }
         }
         catch (Exception exception)
         {
             errorMessage = exception.Message;
+            sponsors = [];
+            totalCount = 0;
         }
         finally
         {
             isLoading = false;
         }
     }
-
     private async Task SearchChanged(ChangeEventArgs args)
     {
         searchTerm = args.Value?.ToString() ?? string.Empty;
@@ -264,7 +373,7 @@
             await Task.Delay(
                 300,
                 searchCancellation.Token);
-
+            currentPage = 1;
             await LoadAsync();
         }
         catch (OperationCanceledException)
@@ -273,11 +382,14 @@
         }
     }
 
-    private async Task IncludeInactiveChanged(ChangeEventArgs args)
+    private async Task IncludeInactiveChanged(
+    ChangeEventArgs args)
     {
         includeInactive =
-            args.Value is bool value && value;
+            args.Value is bool value &&
+            value;
 
+        currentPage = 1;
         await LoadAsync();
     }
 
@@ -409,5 +521,51 @@
             500,
             ErrorMessage = "العنوان يجب ألا يتجاوز 500 حرف.")]
         public string? Address { get; set; }
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        var newPage = Math.Clamp(
+            page,
+            1,
+            TotalPages);
+
+        if (newPage == currentPage)
+        {
+            return;
+        }
+
+        currentPage = newPage;
+        await LoadAsync();
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        await GoToPageAsync(
+            currentPage - 1);
+    }
+
+    private async Task NextPageAsync()
+    {
+        await GoToPageAsync(
+            currentPage + 1);
+    }
+
+    private async Task PageSizeChanged(
+        ChangeEventArgs args)
+    {
+        if (!int.TryParse(
+                args.Value?.ToString(),
+                out var newPageSize) ||
+            newPageSize is not
+                (10 or 25 or 50))
+        {
+            return;
+        }
+
+        pageSize = newPageSize;
+        currentPage = 1;
+
+        await LoadAsync();
     }
 }

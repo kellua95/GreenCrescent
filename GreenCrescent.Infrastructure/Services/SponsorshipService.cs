@@ -1,4 +1,6 @@
-﻿using GreenCrescent.Application.Features.Sponsorships;
+﻿using GreenCrescent.Application.Common;
+using GreenCrescent.Application.Common.Models;
+using GreenCrescent.Application.Features.Sponsorships;
 using GreenCrescent.Core.Entities;
 using GreenCrescent.Core.Enums;
 using GreenCrescent.Infrastructure.Identity;
@@ -7,8 +9,92 @@ using Microsoft.EntityFrameworkCore;
 namespace GreenCrescent.Infrastructure.Services;
 
 public sealed class SponsorshipService(
-    ApplicationDbContext dbContext) : ISponsorshipService
+    ApplicationDbContext dbContext,
+    ICurrentUserService currentUserService) : ISponsorshipService
 {
+    public async Task<PagedResult<SponsorshipDto>>
+    SearchPageAsync(
+        string? searchTerm,
+        bool activeOnly,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        pageNumber = Math.Max(1, pageNumber);
+
+        pageSize = pageSize is 10 or 25 or 50
+            ? pageSize
+            : 10;
+
+        var query = dbContext.Sponsorships
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (activeOnly)
+        {
+            query = query.Where(item =>
+                item.Status == SponsorshipStatus.Active);
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            var term = searchTerm.Trim();
+
+            var isFileNumber =
+                int.TryParse(term, out var fileNumber);
+
+            query = query.Where(item =>
+                EF.Functions.ILike(
+                    item.Sponsor.Name,
+                    $"%{term}%") ||
+
+                EF.Functions.ILike(
+                    item.Beneficiary.Name,
+                    $"%{term}%") ||
+
+                (
+                    isFileNumber &&
+                    item.Beneficiary.FileNumber == fileNumber
+                ));
+        }
+
+        var totalCount = await query.CountAsync(
+            cancellationToken);
+
+        var items = await query
+            .OrderBy(item => item.EndDate)
+            .ThenBy(item => item.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(item => new SponsorshipDto(
+                item.Id,
+
+                item.SponsorId,
+                item.Sponsor.Name,
+
+                item.BeneficiaryId,
+                item.Beneficiary.FileNumber,
+                item.Beneficiary.Name,
+
+                item.ResponsibleSheikhId,
+                item.ResponsibleSheikh != null
+                    ? item.ResponsibleSheikh.Name
+                    : null,
+                
+                item.MonthlyAmount,
+                item.StartDate,
+                item.EndDate,
+                item.Status,
+                item.Notes))
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<SponsorshipDto>(
+            items,
+            totalCount,
+            pageNumber,
+            pageSize);
+    }
+
     public async Task<IReadOnlyList<SponsorshipDto>> SearchAsync(
         string? searchTerm,
         bool activeOnly = true,
@@ -127,26 +213,27 @@ public sealed class SponsorshipService(
             ?? throw new InvalidOperationException(
                 "المعرّف غير موجود أو موقوف.");
 
-        if (beneficiary.Status !=
-            BeneficiaryStatus.WaitingForSponsor)
+        if (beneficiary.Status is not
+            (BeneficiaryStatus.WaitingForSponsor or
+             BeneficiaryStatus.Sponsored))
         {
             throw new InvalidOperationException(
-                "يجب أن تكون حالة المكفول «بانتظار كافل» قبل إنشاء الكفالة.");
+                "حالة المكفول لا تسمح بإنشاء كفالة جديدة.");
         }
 
-        var hasActiveSponsorship =
-            await dbContext.Sponsorships.AnyAsync(
-                item =>
-                    item.BeneficiaryId ==
-                    request.BeneficiaryId &&
-                    item.Status ==
-                    SponsorshipStatus.Active,
-                cancellationToken);
+        var activeSponsorshipsCount =
+    await dbContext.Sponsorships.CountAsync(
+        item =>
+            item.BeneficiaryId ==
+            request.BeneficiaryId &&
+            item.Status ==
+            SponsorshipStatus.Active,
+        cancellationToken);
 
-        if (hasActiveSponsorship)
+        if (activeSponsorshipsCount >= 3)
         {
             throw new InvalidOperationException(
-                "هذا المكفول لديه كفالة فعالة بالفعل.");
+                "هذا المكفول وصل إلى الحد الأعلى وهو 3 كفالات فعالة.");
         }
 
         var sponsorship = new Sponsorship
@@ -174,9 +261,9 @@ public sealed class SponsorshipService(
     }
 
     public async Task StopAsync(
-        int sponsorshipId,
-        string reason,
-        CancellationToken cancellationToken = default)
+    int sponsorshipId,
+    string reason,
+    CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(reason))
         {
@@ -184,36 +271,104 @@ public sealed class SponsorshipService(
                 "سبب إيقاف الكفالة مطلوب.");
         }
 
+        var normalizedReason =
+            reason.Trim();
+
+        if (normalizedReason.Length > 1000)
+        {
+            throw new InvalidOperationException(
+                "سبب الإيقاف يجب ألا يتجاوز 1000 حرف.");
+        }
+
+        await using var transaction =
+            await dbContext.Database.BeginTransactionAsync(
+                cancellationToken);
+
         var sponsorship = await dbContext.Sponsorships
             .Include(item => item.Beneficiary)
             .FirstOrDefaultAsync(
-                item => item.Id == sponsorshipId,
+                item =>
+                    item.Id == sponsorshipId &&
+                    item.Status ==
+                        SponsorshipStatus.Active,
                 cancellationToken)
             ?? throw new InvalidOperationException(
-                "الكفالة المطلوبة غير موجودة.");
-
-        if (sponsorship.Status !=
-            SponsorshipStatus.Active)
-        {
-            throw new InvalidOperationException(
-                "الكفالة ليست فعالة.");
-        }
+                "الكفالة الفعالة المطلوبة غير موجودة.");
 
         sponsorship.Status =
             SponsorshipStatus.Ended;
-        sponsorship.UpdatedAtUtc = DateTime.UtcNow;
+
+        sponsorship.UpdatedAtUtc =
+            DateTime.UtcNow;
 
         sponsorship.Notes = AppendReason(
             sponsorship.Notes,
-            reason);
+            normalizedReason);
+
+        var hasAnotherActiveSponsorship =
+            await dbContext.Sponsorships
+                .AnyAsync(
+                    item =>
+                        item.Id != sponsorship.Id &&
+                        item.BeneficiaryId ==
+                            sponsorship.BeneficiaryId &&
+                        item.Status ==
+                            SponsorshipStatus.Active,
+                    cancellationToken);
 
         sponsorship.Beneficiary.Status =
-            BeneficiaryStatus.WaitingForSponsor;
+            hasAnotherActiveSponsorship
+                ? BeneficiaryStatus.Sponsored
+                : BeneficiaryStatus.WaitingForSponsor;
 
         sponsorship.Beneficiary.UpdatedAtUtc =
             DateTime.UtcNow;
 
+        dbContext.SponsorshipChanges.Add(
+            new SponsorshipChange
+            {
+                ChangeType =
+                    SponsorshipChangeType.SponsorshipStopped,
+
+                OldSponsorshipId =
+                    sponsorship.Id,
+
+                NewSponsorshipId =
+                    null,
+
+                OldSponsorId =
+                    sponsorship.SponsorId,
+
+                NewSponsorId =
+                    null,
+
+                OldBeneficiaryId =
+                    sponsorship.BeneficiaryId,
+
+                NewBeneficiaryId =
+                    null,
+
+                OldMonthlyAmount =
+                    sponsorship.MonthlyAmount,
+
+                NewMonthlyAmount =
+                    null,
+
+                EffectiveDate =
+                    DateOnly.FromDateTime(
+                        DateTime.Today),
+
+                Reason =
+                    normalizedReason,
+
+                PerformedByUserId =
+                    await currentUserService.GetUserIdAsync()
+            });
+
         await dbContext.SaveChangesAsync(
+            cancellationToken);
+
+        await transaction.CommitAsync(
             cancellationToken);
     }
 

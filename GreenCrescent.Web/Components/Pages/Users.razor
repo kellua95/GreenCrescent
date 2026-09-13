@@ -1,0 +1,341 @@
+﻿@page "/users"
+@rendermode InteractiveServer
+
+@using GreenCrescent.Infrastructure.Identity
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+
+@attribute [Authorize(Roles = "Admin")]
+
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>إدارة المستخدمين</PageTitle>
+
+<div class="users-page" dir="rtl">
+    <header class="page-header">
+        <div>
+            <span class="section-label">الحساب</span>
+            <h1>إدارة المستخدمين</h1>
+            <p>
+                إيقاف الحسابات السابقة وإدارة صلاحية الدخول.
+            </p>
+        </div>
+
+        <a class="primary-button"
+           href="Account/Register">
+            ＋ إضافة مستخدم
+        </a>
+    </header>
+
+    @if (message is not null)
+    {
+        <div class="alert success-alert">
+            @message
+        </div>
+    }
+
+    @if (errorMessage is not null)
+    {
+        <div class="alert error-alert">
+            @errorMessage
+        </div>
+    }
+
+    <section class="list-card">
+        @if (isLoading)
+        {
+            <div class="empty-state">
+                جاري تحميل المستخدمين...
+            </div>
+        }
+        else if (users.Count == 0)
+        {
+            <div class="empty-state">
+                لا يوجد مستخدمون.
+            </div>
+        }
+        else
+        {
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>الاسم</th>
+                            <th>البريد الإلكتروني</th>
+                            <th>الصلاحية</th>
+                            <th>الحالة</th>
+                            <th>تاريخ الإيقاف</th>
+                            <th>الإجراءات</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var user in users)
+                        {
+                            <tr class="@(!user.IsActive ? "inactive-row" : null)">
+                                <td>
+                                    <strong>
+                                        @(string.IsNullOrWhiteSpace(user.FullName)
+                                            ? "—"
+                                            : user.FullName)
+                                    </strong>
+
+                                    @if (user.IsCurrentUser)
+                                    {
+                                        <span class="current-badge">
+                                            حسابك
+                                        </span>
+                                    }
+                                </td>
+
+                                <td>@user.Email</td>
+                                <td>@user.RoleName</td>
+
+                                <td>
+                                    <span class="status-badge @(user.IsActive ? "active" : "inactive")">
+                                        @(user.IsActive
+                                            ? "فعال"
+                                            : "موقوف")
+                                    </span>
+                                </td>
+
+                                <td>
+                                    @(user.DeactivatedAtUtc?.ToLocalTime()
+                                        .ToString("yyyy/MM/dd HH:mm") ?? "—")
+                                </td>
+
+                                <td>
+                                    <button type="button"
+                                            class="toggle-button @(user.IsActive ? "stop" : "activate")"
+                                            disabled="@(isSaving || user.IsCurrentUser)"
+                                            @onclick="() => ToggleUserAsync(user)">
+                                        @(user.IsActive
+                                            ? "إيقاف"
+                                            : "تفعيل")
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@code {
+    private IReadOnlyList<UserRow> users = [];
+
+    private string? currentUserId;
+    private string? message;
+    private string? errorMessage;
+
+    private bool isLoading = true;
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState =
+            await AuthenticationStateProvider
+                .GetAuthenticationStateAsync();
+
+        currentUserId =
+            UserManager.GetUserId(
+                authenticationState.User);
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var accounts =
+                await UserManager.Users
+                    .OrderBy(item =>
+                        item.FullName)
+                    .ThenBy(item =>
+                        item.Email)
+                    .ToListAsync();
+
+            var rows =
+                new List<UserRow>();
+
+            foreach (var account in accounts)
+            {
+                var roles =
+                    await UserManager.GetRolesAsync(
+                        account);
+
+                rows.Add(
+                    new UserRow(
+                        account.Id,
+                        account.FullName,
+                        account.Email ?? "—",
+                        FormatRoles(roles),
+                        roles.Contains(AppRoles.Admin),
+                        account.IsActive,
+                        account.DeactivatedAtUtc,
+                        account.Id == currentUserId));
+            }
+
+            users = rows;
+        }
+        catch (Exception exception)
+        {
+            errorMessage =
+                exception.Message;
+
+            users = [];
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ToggleUserAsync(
+        UserRow row)
+    {
+        message = null;
+        errorMessage = null;
+
+        if (row.IsCurrentUser)
+        {
+            errorMessage =
+                "لا يمكنك إيقاف حسابك الحالي.";
+
+            return;
+        }
+
+        var account =
+            await UserManager.FindByIdAsync(
+                row.Id);
+
+        if (account is null)
+        {
+            errorMessage =
+                "المستخدم المطلوب غير موجود.";
+
+            return;
+        }
+
+        if (account.IsActive &&
+            row.IsAdmin)
+        {
+            var administrators =
+                await UserManager.GetUsersInRoleAsync(
+                    AppRoles.Admin);
+
+            var activeAdministrators =
+                administrators.Count(item =>
+                    item.IsActive);
+
+            if (activeAdministrators <= 1)
+            {
+                errorMessage =
+                    "لا يمكن إيقاف آخر مدير فعال في النظام.";
+
+                return;
+            }
+        }
+
+        isSaving = true;
+
+        try
+        {
+            account.IsActive =
+                !account.IsActive;
+
+            account.DeactivatedAtUtc =
+                account.IsActive
+                    ? null
+                    : DateTime.UtcNow;
+
+            var result =
+                await UserManager.UpdateAsync(
+                    account);
+
+            if (!result.Succeeded)
+            {
+                throw new InvalidOperationException(
+                    string.Join(
+                        "، ",
+                        result.Errors.Select(item =>
+                            item.Description)));
+            }
+
+            if (!account.IsActive)
+            {
+                var stampResult =
+                    await UserManager
+                        .UpdateSecurityStampAsync(
+                            account);
+
+                if (!stampResult.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        string.Join(
+                            "، ",
+                            stampResult.Errors.Select(item =>
+                                item.Description)));
+                }
+            }
+
+            message = account.IsActive
+                ? "تم تفعيل حساب المستخدم."
+                : "تم إيقاف حساب المستخدم.";
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage =
+                exception.Message;
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string FormatRoles(
+        IEnumerable<string> roles)
+    {
+        var names = roles
+            .Select(role => role switch
+            {
+                AppRoles.Admin =>
+                    "مدير نظام",
+
+                AppRoles.Staff =>
+                    "موظف",
+
+                AppRoles.Viewer =>
+                    "مشاهدة فقط",
+
+                _ => role
+            })
+            .ToList();
+
+        return names.Count == 0
+            ? "دون صلاحية"
+            : string.Join("، ", names);
+    }
+
+    private sealed record UserRow(
+        string Id,
+        string FullName,
+        string Email,
+        string RoleName,
+        bool IsAdmin,
+        bool IsActive,
+        DateTime? DeactivatedAtUtc,
+        bool IsCurrentUser);
+}

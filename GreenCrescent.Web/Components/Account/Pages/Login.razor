@@ -146,15 +146,29 @@
         }
         else
         {
-            // If doing a password sign-in, validate the form.
             if (!editContext.Validate())
             {
                 return;
             }
 
-            // This doesn't count login failures towards account lockout
-            // To enable password failures to trigger account lockout, set lockoutOnFailure: true
-            result = await SignInManager.PasswordSignInAsync(Input.Email, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+            var user = await UserManager.FindByEmailAsync(
+                Input.Email.Trim());
+
+            if (user is not null &&
+                !user.IsActive)
+            {
+                errorMessage =
+                    "هذا الحساب موقوف. يرجى مراجعة مدير النظام.";
+
+                return;
+            }
+
+            result =
+                await SignInManager.PasswordSignInAsync(
+                    Input.Email.Trim(),
+                    Input.Password,
+                    Input.RememberMe,
+                    lockoutOnFailure: false);
         }
 
         if (result.Succeeded)

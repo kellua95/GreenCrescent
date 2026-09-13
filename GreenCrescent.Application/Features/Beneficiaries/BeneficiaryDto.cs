@@ -13,4 +13,5 @@ public sealed record BeneficiaryDto(
     string? ArchiveReason,
     string? Notes,
     int? ActiveSponsorshipId,
-    string? ActiveSponsorName);
+    string? ActiveSponsorName,
+    int ActiveSponsorshipsCount);

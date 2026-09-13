@@ -199,6 +199,11 @@ button {
     border: 1px solid #9bc8af;
 }
 
+    .edit-button:hover {
+        background: #056533;
+        color: white;
+    }
+
 .toggle-button {
     color: #75520a;
     border: 1px solid #d8c494;
@@ -454,3 +459,203 @@ button {
         flex-direction: column;
     }
 }
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem;
+    border-top: 1px solid var(--gc-border);
+    background: #fbfcfb;
+}
+
+.page-size {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--gc-muted);
+    font-size: 0.85rem;
+}
+
+    .page-size select {
+        min-width: 70px;
+        padding: 0.45rem 0.65rem;
+        color: var(--gc-text);
+        background: white;
+        border: 1px solid var(--gc-border);
+        border-radius: 8px;
+        outline: none;
+    }
+
+        .page-size select:focus {
+            border-color: var(--gc-primary);
+            box-shadow: 0 0 0 3px rgb(22 131 75 / 12%);
+        }
+
+.page-information {
+    color: var(--gc-muted);
+    font-size: 0.85rem;
+}
+
+.page-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+    .page-buttons button {
+        min-width: 38px;
+        min-height: 36px;
+        padding: 0.4rem 0.65rem;
+        color: var(--gc-text);
+        background: white;
+        border: 1px solid var(--gc-border);
+        border-radius: 8px;
+        font-family: inherit;
+        font-weight: 700;
+        cursor: pointer;
+    }
+
+        .page-buttons button:hover:not(:disabled) {
+            color: var(--gc-primary);
+            border-color: var(--gc-primary);
+        }
+
+        .page-buttons button.active {
+            color: white;
+            background: var(--gc-primary);
+            border-color: var(--gc-primary);
+        }
+
+        .page-buttons button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+@media (max-width: 750px) {
+    .pagination-bar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .page-buttons {
+        flex-wrap: wrap;
+    }
+}
+
+.table-container tbody tr {
+    cursor: pointer;
+    transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+    .table-container tbody tr:hover {
+        background: #e5f7ec;
+        box-shadow: inset -4px 0 0 var(--gc-primary);
+    }
+
+        .table-container tbody tr:hover td {
+            color: #075f38;
+        }
+
+    .table-container tbody tr.selected-row {
+        background: #d8f3e3;
+        box-shadow: inset -4px 0 0 var(--gc-primary);
+    }
+
+        .table-container tbody tr.selected-row td {
+            color: #064e3b;
+        }
+
+.selected-sponsorship {
+    scroll-margin-top: 90px;
+}
+
+.row-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.stop-button {
+    padding: 0.5rem 0.75rem;
+    color: #b42318;
+    background: white;
+    border: 1px solid #e7aaa5;
+    border-radius: 8px;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+    .stop-button:hover {
+        color: white;
+        background: #b42318;
+        border-color: #b42318;
+    }
+
+.danger-button {
+    padding: 0.7rem 1rem;
+    color: white;
+    background: #b42318;
+    border: 1px solid #b42318;
+    border-radius: 9px;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+    .danger-button:hover:not(:disabled) {
+        background: #912018;
+    }
+
+    .danger-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+.stop-summary {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: #fff7f6;
+    border: 1px solid #f1c0bc;
+    border-radius: 10px;
+}
+
+    .stop-summary > p {
+        margin-top: 0;
+        color: #8f251d;
+        font-weight: 700;
+    }
+
+    .stop-summary > div {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.4rem 0;
+    }
+
+    .stop-summary span {
+        color: var(--gc-muted);
+    }
+
+tbody tr {
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+    tbody tr:hover {
+        background: #e4f6eb;
+    }
+
+        tbody tr:hover td {
+            color: #075f36;
+        }
+
+    tbody tr.selected-row {
+        background: #d8f2e2;
+        box-shadow: inset -4px 0 0 var(--gc-primary);
+    }
+
+        tbody tr.selected-row td {
+            color: #075f36;
+        }

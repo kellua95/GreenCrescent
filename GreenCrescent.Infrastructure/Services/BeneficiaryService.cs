@@ -1,4 +1,5 @@
-﻿using GreenCrescent.Application.Features.Beneficiaries;
+﻿using GreenCrescent.Application.Common.Models;
+using GreenCrescent.Application.Features.Beneficiaries;
 using GreenCrescent.Core.Entities;
 using GreenCrescent.Core.Enums;
 using GreenCrescent.Infrastructure.Identity;
@@ -72,9 +73,133 @@ public sealed class BeneficiaryService(
                         SponsorshipStatus.Active)
                     .Select(sponsorship =>
                         sponsorship.Sponsor.Name)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+
+                beneficiary.Sponsorships.Count(sponsorship =>
+                    sponsorship.Status ==
+                    SponsorshipStatus.Active)))
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<PagedResult<BeneficiaryDto>>
+        SearchPageAsync(
+            string? searchTerm,
+            bool includeArchived,
+            bool sponsorshipCountDescending,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default)
+    {
+            pageNumber = Math.Max(
+                1,
+                pageNumber);
+
+            pageSize = pageSize is 10 or 25 or 50
+                ? pageSize
+                : 10;
+
+            var query = dbContext.Beneficiaries
+                .AsNoTracking()
+                .AsQueryable();
+
+            if (!includeArchived)
+            {
+                query = query.Where(item =>
+                    !item.IsArchived);
+            }
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var term = searchTerm.Trim();
+
+                var isFileNumber =
+                    int.TryParse(
+                        term,
+                        out var fileNumber);
+
+                query = query.Where(item =>
+                    EF.Functions.ILike(
+                        item.Name,
+                        $"%{term}%") ||
+
+                    (
+                        item.PhoneNumber != null &&
+                        EF.Functions.ILike(
+                            item.PhoneNumber,
+                            $"%{term}%")
+                    ) ||
+
+                    (
+                        isFileNumber &&
+                        item.FileNumber == fileNumber
+                    ));
+            }
+
+            var totalCount = await query.CountAsync(
+                cancellationToken);
+
+        var orderedQuery = sponsorshipCountDescending
+            ? query
+                .OrderByDescending(item =>
+                    item.Sponsorships.Count(sponsorship =>
+                        sponsorship.Status ==
+                        SponsorshipStatus.Active))
+                .ThenBy(item => item.FileNumber)
+                .ThenBy(item => item.Id)
+
+            : query
+                .OrderBy(item =>
+                    item.Sponsorships.Count(sponsorship =>
+                        sponsorship.Status ==
+                        SponsorshipStatus.Active))
+                .ThenBy(item => item.FileNumber)
+                .ThenBy(item => item.Id);
+
+        var items = await orderedQuery
+                        .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(item => new BeneficiaryDto(
+                    item.Id,
+                    item.FileNumber,
+                    item.Name,
+                    item.PhoneNumber,
+                    item.DateOfBirth,
+                    item.Status,
+                    item.IsArchived,
+                    item.ArchiveReason,
+                    item.Notes,
+
+                    item.Sponsorships
+                        .Where(sponsorship =>
+                            sponsorship.Status ==
+                            SponsorshipStatus.Active)
+                        .OrderBy(sponsorship =>
+                            sponsorship.Id)
+                        .Select(sponsorship =>
+                            (int?)sponsorship.Id)
+                        .FirstOrDefault(),
+
+                    item.Sponsorships
+                        .Where(sponsorship =>
+                            sponsorship.Status ==
+                            SponsorshipStatus.Active)
+                        .OrderBy(sponsorship =>
+                            sponsorship.Id)
+                        .Select(sponsorship =>
+                            sponsorship.Sponsor.Name)
+                        .FirstOrDefault(),
+
+                    item.Sponsorships.Count(sponsorship =>
+                        sponsorship.Status ==
+                        SponsorshipStatus.Active)))
+                .ToListAsync(cancellationToken);
+
+            return new PagedResult<BeneficiaryDto>(
+                items,
+                totalCount,
+                pageNumber,
+                pageSize);
+        }
 
     public async Task<BeneficiaryDto?> GetByIdAsync(
         int id,
@@ -106,7 +231,10 @@ public sealed class BeneficiaryService(
                         SponsorshipStatus.Active)
                     .Select(sponsorship =>
                         sponsorship.Sponsor.Name)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                beneficiary.Sponsorships.Count(sponsorship =>
+                    sponsorship.Status ==
+                    SponsorshipStatus.Active)))
             .FirstOrDefaultAsync(cancellationToken);
     }
 

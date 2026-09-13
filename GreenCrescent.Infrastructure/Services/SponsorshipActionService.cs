@@ -12,6 +12,8 @@ public sealed class SponsorshipActionService(
     ICurrentUserService currentUserService)
     : ISponsorshipActionService
 {
+    private const int MaximumActiveSponsorshipsPerBeneficiary = 3;
+
     public async Task<int> ReplaceSponsorAsync(
         ReplaceSponsorRequest request,
         CancellationToken cancellationToken = default)
@@ -64,6 +66,8 @@ public sealed class SponsorshipActionService(
             SponsorId = newSponsor.Id,
             BeneficiaryId =
                 oldSponsorship.BeneficiaryId,
+            ResponsibleSheikhId =
+                oldSponsorship.ResponsibleSheikhId,
             MonthlyAmount =
                 oldSponsorship.MonthlyAmount,
             StartDate = request.EffectiveDate,
@@ -125,6 +129,7 @@ public sealed class SponsorshipActionService(
 
         var oldSponsorship = await dbContext.Sponsorships
             .Include(item => item.Beneficiary)
+            .Include(item => item.Sponsor)
             .FirstOrDefaultAsync(
                 item =>
                     item.Id == request.SponsorshipId &&
@@ -154,15 +159,17 @@ public sealed class SponsorshipActionService(
             ?? throw new InvalidOperationException(
                 "المكفول الجديد غير موجود.");
 
-        if (newBeneficiary.Status !=
-            BeneficiaryStatus.WaitingForSponsor)
+        if (newBeneficiary.IsArchived ||
+            newBeneficiary.Status is not
+                (BeneficiaryStatus.WaitingForSponsor or
+                 BeneficiaryStatus.Sponsored))
         {
             throw new InvalidOperationException(
-                "يجب أن تكون حالة المكفول الجديد «بانتظار كافل».");
+                "حالة المكفول الجديد لا تسمح باستبداله في الكفالة.");
         }
 
-        var alreadySponsored =
-            await dbContext.Sponsorships.AnyAsync(
+        var activeSponsorshipsCount =
+            await dbContext.Sponsorships.CountAsync(
                 item =>
                     item.BeneficiaryId ==
                     newBeneficiary.Id &&
@@ -170,10 +177,11 @@ public sealed class SponsorshipActionService(
                     SponsorshipStatus.Active,
                 cancellationToken);
 
-        if (alreadySponsored)
+        if (activeSponsorshipsCount >=
+            MaximumActiveSponsorshipsPerBeneficiary)
         {
             throw new InvalidOperationException(
-                "المكفول الجديد لديه كفالة فعالة بالفعل.");
+                $"المكفول الجديد وصل إلى الحد الأعلى وهو {MaximumActiveSponsorshipsPerBeneficiary} كفالات فعالة.");
         }
 
         var oldBeneficiaryId =
@@ -184,18 +192,34 @@ public sealed class SponsorshipActionService(
         oldSponsorship.UpdatedAtUtc =
             DateTime.UtcNow;
 
-        oldSponsorship.Beneficiary.Status =
-            BeneficiaryStatus.NoLongerEligible;
+        var hasOtherActiveSponsorships =
+            await dbContext.Sponsorships.AnyAsync(
+                item =>
+                    item.Id != oldSponsorship.Id &&
+                    item.BeneficiaryId ==
+                    oldSponsorship.BeneficiaryId &&
+                    item.Status ==
+                    SponsorshipStatus.Active,
+                cancellationToken);
+
         oldSponsorship.Beneficiary.UpdatedAtUtc =
             DateTime.UtcNow;
 
-        oldSponsorship.Beneficiary.IsArchived = true;
-
-        oldSponsorship.Beneficiary.ArchivedAtUtc =
-            DateTime.UtcNow;
-
-        oldSponsorship.Beneficiary.ArchiveReason =
-            $"تم استبداله في الكفالة: {request.Reason.Trim()}";
+        if (hasOtherActiveSponsorships)
+        {
+            oldSponsorship.Beneficiary.Status =
+                BeneficiaryStatus.Sponsored;
+        }
+        else
+        {
+            oldSponsorship.Beneficiary.Status =
+                BeneficiaryStatus.NoLongerEligible;
+            oldSponsorship.Beneficiary.IsArchived = true;
+            oldSponsorship.Beneficiary.ArchivedAtUtc =
+                DateTime.UtcNow;
+            oldSponsorship.Beneficiary.ArchiveReason =
+                $"تم استبداله في الكفالة المرتبطة بالكافل {oldSponsorship.Sponsor.Name}: {request.Reason.Trim()}";
+        }
 
         newBeneficiary.Status =
             BeneficiaryStatus.Sponsored;
@@ -206,6 +230,8 @@ public sealed class SponsorshipActionService(
         {
             SponsorId = oldSponsorship.SponsorId,
             BeneficiaryId = newBeneficiary.Id,
+            ResponsibleSheikhId =
+                oldSponsorship.ResponsibleSheikhId,
             MonthlyAmount =
                 oldSponsorship.MonthlyAmount,
             StartDate = request.EffectiveDate,

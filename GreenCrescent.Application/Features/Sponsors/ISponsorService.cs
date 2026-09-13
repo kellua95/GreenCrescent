@@ -1,4 +1,6 @@
-﻿namespace GreenCrescent.Application.Features.Sponsors
+﻿using GreenCrescent.Application.Common.Models;
+
+namespace GreenCrescent.Application.Features.Sponsors
 {
     public interface ISponsorService
     {
@@ -9,6 +11,13 @@
 
         Task<SponsorDto?> GetByIdAsync(
             int id,
+            CancellationToken cancellationToken = default);
+
+        Task<PagedResult<SponsorDto>> SearchPageAsync(
+            string? searchTerm,
+            bool includeInactive,
+            int pageNumber,
+            int pageSize,
             CancellationToken cancellationToken = default);
 
         Task<int> CreateAsync(
