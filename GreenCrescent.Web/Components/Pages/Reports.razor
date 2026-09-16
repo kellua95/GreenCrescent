@@ -945,20 +945,34 @@
             {
                 ReportMode.General or ReportMode.Expired =>
                     ExcelExportService.ExportGeneral(
-                        generalRows,
+                        SortGeneralRows().ToList(),
                         ReportTitle),
 
                 ReportMode.Detailed =>
                     ExcelExportService.ExportDetailed(
-                        detailedRows),
+                        SortDetailedRows().ToList()),
 
                 ReportMode.Financial or ReportMode.Donations =>
                     ExcelExportService.ExportFinancial(
-                        financialRows,
+                        SortFinancialRows().ToList(),
                         ReportTitle),
 
-                _ => throw new InvalidOperationException(
-                    "نوع التقرير غير مدعوم.")
+                ReportMode.Sponsors =>
+                    ExcelExportService.ExportSponsors(
+                        SortedSponsorRows.ToList(),
+                        ReportTitle),
+
+                ReportMode.Beneficiaries =>
+                    ExcelExportService.ExportBeneficiaries(
+                        SortedBeneficiaryRows.ToList(),
+                        ReportTitle,
+                        archivedOnly: false),
+
+                ReportMode.BeneficiaryArchive =>
+                    ExcelExportService.ExportBeneficiaries(
+                        SortedBeneficiaryRows.ToList(),
+                        ReportTitle,
+                        archivedOnly: true)
             };
 
             var fileName =

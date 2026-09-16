@@ -21,4 +21,4 @@ public interface IResponsibleSheikhService
         int id,
         bool isActive,
         CancellationToken cancellationToken = default);
-}
+} 
