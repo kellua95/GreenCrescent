@@ -64,17 +64,27 @@ public sealed class SponsorshipActionService(
         var newSponsorship = new Sponsorship
         {
             SponsorId = newSponsor.Id,
+
             BeneficiaryId =
-                oldSponsorship.BeneficiaryId,
+        oldSponsorship.BeneficiaryId,
+
             ResponsibleSheikhId =
-                oldSponsorship.ResponsibleSheikhId,
+        oldSponsorship.ResponsibleSheikhId,
+
             MonthlyAmount =
-                oldSponsorship.MonthlyAmount,
-            StartDate = request.EffectiveDate,
-            EndDate = oldSponsorship.EndDate,
-            Status = SponsorshipStatus.Active,
+        oldSponsorship.MonthlyAmount,
+
+            StartDate =
+        oldSponsorship.StartDate,
+
+            EndDate =
+        oldSponsorship.EndDate,
+
+            Status =
+        SponsorshipStatus.Active,
+
             Notes =
-                $"استمرار كفالة بعد استبدال الكافل. السبب: {request.Reason.Trim()}"
+        $"استمرار كفالة بعد استبدال الكافل. السبب: {request.Reason.Trim()}"
         };
 
         dbContext.Sponsorships.Add(newSponsorship);
@@ -228,17 +238,29 @@ public sealed class SponsorshipActionService(
 
         var newSponsorship = new Sponsorship
         {
-            SponsorId = oldSponsorship.SponsorId,
-            BeneficiaryId = newBeneficiary.Id,
+            SponsorId =
+        oldSponsorship.SponsorId,
+
+            BeneficiaryId =
+        newBeneficiary.Id,
+
             ResponsibleSheikhId =
-                oldSponsorship.ResponsibleSheikhId,
+        oldSponsorship.ResponsibleSheikhId,
+
             MonthlyAmount =
-                oldSponsorship.MonthlyAmount,
-            StartDate = request.EffectiveDate,
-            EndDate = oldSponsorship.EndDate,
-            Status = SponsorshipStatus.Active,
+        oldSponsorship.MonthlyAmount,
+
+            StartDate =
+        oldSponsorship.StartDate,
+
+            EndDate =
+        oldSponsorship.EndDate,
+
+            Status =
+        SponsorshipStatus.Active,
+
             Notes =
-                $"استمرار كفالة بعد استبدال المكفول. السبب: {request.Reason.Trim()}"
+        $"استمرار كفالة بعد استبدال المكفول. السبب: {request.Reason.Trim()}"
         };
 
         dbContext.Sponsorships.Add(newSponsorship);
@@ -376,19 +398,13 @@ public sealed class SponsorshipActionService(
     }
 
     private static void ValidateReplacementDate(
-        DateOnly effectiveDate,
-        Sponsorship sponsorship)
+    DateOnly effectiveDate,
+    Sponsorship sponsorship)
     {
         if (effectiveDate < sponsorship.StartDate)
         {
             throw new InvalidOperationException(
                 "تاريخ الاستبدال لا يمكن أن يسبق بداية الكفالة.");
-        }
-
-        if (effectiveDate > sponsorship.EndDate)
-        {
-            throw new InvalidOperationException(
-                "لا يمكن استبدال طرف في كفالة انتهت مدتها المدفوعة.");
         }
     }
 }
