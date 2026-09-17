@@ -25,6 +25,9 @@ namespace GreenCrescent.Infrastructure.Identity
         public DbSet<PaymentAllocation> PaymentAllocations =>
             Set<PaymentAllocation>();
 
+        public DbSet<SponsorCreditTransaction> SponsorCreditTransactions =>
+                Set<SponsorCreditTransaction>();
+
         public DbSet<SponsorshipChange> SponsorshipChanges =>
             Set<SponsorshipChange>();
 

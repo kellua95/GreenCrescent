@@ -234,6 +234,14 @@
 
                                 <th>
                                     <button class="sort-button"
+                                            @onclick='() => SortBy("CreditBalance")'>
+                                        الرصيد المتاح
+                                        @SortIndicator("CreditBalance")
+                                    </button>
+                                </th>
+
+                                <th>
+                                    <button class="sort-button"
                                             @onclick='() => SortBy("IsActive")'>
                                         الحالة @SortIndicator("IsActive")
                                     </button>
@@ -253,6 +261,10 @@
                                         <span class="count-badge">
                                             @item.ActiveSponsorshipsCount
                                         </span>
+                                    </td>
+
+                                    <td>
+                                        @item.CreditBalance.ToString("0.000") د.أ
                                     </td>
 
                                     <td>
@@ -1221,7 +1233,12 @@
             sortColumn = "EndDate";
             sortAscending = true;
         }
-        else
+        else if (mode == ReportMode.Sponsors)
+        {
+            sortColumn = "Name";
+            sortAscending = true;
+        }
+        else 
         {
             sortColumn = "FileNumber";
             sortAscending = true;
@@ -1250,6 +1267,13 @@
         ("ActiveSponsorshipsCount", false) =>
             sponsorRows.OrderByDescending(item =>
                 item.ActiveSponsorshipsCount),
+        ("CreditBalance", true) =>
+            sponsorRows.OrderBy(item =>
+                item.CreditBalance),
+
+        ("CreditBalance",   false) =>
+            sponsorRows.OrderByDescending(item =>
+                item.CreditBalance),
 
         ("IsActive", true) =>
             sponsorRows.OrderBy(item => item.IsActive),

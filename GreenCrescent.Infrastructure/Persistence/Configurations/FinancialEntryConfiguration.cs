@@ -59,7 +59,17 @@ namespace GreenCrescent.Infrastructure.Persistence.Configurations
             builder.HasIndex(x => x.EntryDate);
             builder.HasIndex(x => x.EntryType);
             builder.HasIndex(x => x.DonorName);
-            builder.HasIndex(x => new { x.BookNumber, x.ReceiptNumber });
+            builder.HasIndex(x => new
+            {
+                x.BookNumber,
+                x.ReceiptNumber
+            })
+            .IsUnique()
+            .HasFilter(
+                "\"BookNumber\" IS NOT NULL AND " +
+                "\"ReceiptNumber\" IS NOT NULL")
+            .HasDatabaseName(
+                "IX_FinancialEntries_Book_Receipt_Unique");
         }
     }
     }

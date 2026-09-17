@@ -332,3 +332,72 @@ tbody tr {
         flex-wrap: wrap;
     }
 }
+
+.balance-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    color: #6f4700;
+    background: #fff9e8;
+    border: 1px solid #efd18a;
+    border-radius: 12px;
+}
+
+.balance-warning-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    color: white;
+    background: #d38b08;
+    border-radius: 50%;
+    font-size: 1.2rem;
+    font-weight: 900;
+}
+
+.balance-warning strong {
+    display: block;
+    margin-bottom: 0.45rem;
+    color: #553700;
+}
+
+.balance-warning p {
+    margin: 0;
+}
+
+.balance-warning-value {
+    margin: 0.5rem 0;
+    color: #9a5f00;
+    font-size: 1.5rem;
+    font-weight: 900;
+}
+
+.balance-warning small {
+    display: block;
+    color: #80652f;
+    line-height: 1.6;
+}
+
+.danger-button {
+    padding: 0.7rem 1rem;
+    color: white;
+    background: #b42318;
+    border: 0;
+    border-radius: 10px;
+    font-family: inherit;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+    .danger-button:hover {
+        background: #921c14;
+    }
+
+    .danger-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }

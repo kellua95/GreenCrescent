@@ -11,10 +11,10 @@ public sealed class FinancialEntryService(
     ApplicationDbContext dbContext) : IFinancialEntryService
 {
     public async Task<SponsorshipPaymentPreviewDto>
-        PreviewSponsorshipPaymentAsync(
-            int sponsorId,
-            decimal amount,
-            CancellationToken cancellationToken = default)
+    PreviewSponsorshipPaymentAsync(
+        int sponsorId,
+        decimal amount,
+        CancellationToken cancellationToken = default)
     {
         var sponsor = await dbContext.Sponsors
             .AsNoTracking()
@@ -24,7 +24,8 @@ public sealed class FinancialEntryService(
             .Select(item => new
             {
                 item.Id,
-                item.Name
+                item.Name,
+                item.CreditBalance
             })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException(
@@ -35,22 +36,26 @@ public sealed class FinancialEntryService(
             .Where(item =>
                 item.SponsorId == sponsorId &&
                 item.Status == SponsorshipStatus.Active)
-            .OrderBy(item => item.Beneficiary.FileNumber)
+            .OrderBy(item =>
+                item.Beneficiary.FileNumber)
             .Select(item => new
             {
                 item.Id,
                 item.MonthlyAmount,
                 item.EndDate,
                 item.Beneficiary.FileNumber,
-                BeneficiaryName = item.Beneficiary.Name
+                BeneficiaryName =
+                    item.Beneficiary.Name
             })
             .ToListAsync(cancellationToken);
 
-        var addedMonths =
-            SponsorshipPaymentCalculator.CalculateMonths(
-                amount,
-                sponsorships.Select(item =>
-                    item.MonthlyAmount));
+        var calculation =
+            SponsorshipPaymentCalculator
+                .CalculateWithCredit(
+                    sponsor.CreditBalance,
+                    amount,
+                    sponsorships.Select(item =>
+                        item.MonthlyAmount));
 
         var allocations = sponsorships
             .Select(item =>
@@ -60,18 +65,23 @@ public sealed class FinancialEntryService(
                     item.BeneficiaryName,
                     item.MonthlyAmount,
                     item.EndDate,
-                    item.EndDate.AddMonths(addedMonths),
-                    item.MonthlyAmount * addedMonths))
+                    item.EndDate.AddMonths(
+                        calculation.AddedMonths),
+                    item.MonthlyAmount *
+                        calculation.AddedMonths))
             .ToList();
 
         return new SponsorshipPaymentPreviewDto(
             sponsor.Id,
             sponsor.Name,
-            sponsorships.Sum(item =>
-                item.MonthlyAmount),
+            calculation.TotalMonthlyAmount,
             amount,
-            addedMonths,
-            allocations);
+            calculation.AddedMonths,
+            allocations,
+            calculation.PreviousBalance,
+            calculation.AvailableAmount,
+            calculation.AppliedAmount,
+            calculation.RemainingBalance);
     }
 
     public async Task<int> CreateAsync(
@@ -183,8 +193,8 @@ public sealed class FinancialEntryService(
     }
 
     private async Task<int> CreateSponsorshipPaymentAsync(
-        CreateFinancialEntryRequest request,
-        CancellationToken cancellationToken)
+    CreateFinancialEntryRequest request,
+    CancellationToken cancellationToken)
     {
         if (!request.SponsorId.HasValue ||
             request.SponsorId.Value <= 0)
@@ -193,56 +203,141 @@ public sealed class FinancialEntryService(
                 "يجب اختيار الكافل من السجلات.");
         }
 
+        await using var transaction =
+            await dbContext.Database.BeginTransactionAsync(
+                cancellationToken);
+
+        var sponsorId =
+            request.SponsorId.Value;
+
+        // قفل سجل الكافل حتى تنتهي عملية احتساب
+        // الرصيد والتمديد والحفظ.
         var sponsor = await dbContext.Sponsors
-            .FirstOrDefaultAsync(
-                item =>
-                    item.Id == request.SponsorId.Value &&
-                    item.IsActive,
-                cancellationToken)
+            .FromSqlInterpolated(
+                $@"SELECT *
+               FROM ""Sponsors""
+               WHERE ""Id"" = {sponsorId}
+               FOR UPDATE")
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException(
-                "الكافل غير موجود أو موقوف.");
+                "الكافل غير موجود.");
+
+        if (!sponsor.IsActive)
+        {
+            throw new InvalidOperationException(
+                "الكافل موقوف.");
+        }
 
         var sponsorships = await dbContext.Sponsorships
             .Where(item =>
                 item.SponsorId == sponsor.Id &&
                 item.Status == SponsorshipStatus.Active)
-            .OrderBy(item => item.BeneficiaryId)
+            .OrderBy(item =>
+                item.BeneficiaryId)
             .ToListAsync(cancellationToken);
 
-        var addedMonths =
-            SponsorshipPaymentCalculator.CalculateMonths(
-                request.Amount,
-                sponsorships.Select(item =>
-                    item.MonthlyAmount));
+        var calculation =
+            SponsorshipPaymentCalculator
+                .CalculateWithCredit(
+                    sponsor.CreditBalance,
+                    request.Amount,
+                    sponsorships.Select(item =>
+                        item.MonthlyAmount));
 
         var entry = CreateEntry(
             request,
             sponsor.Id,
             sponsor.Name);
 
-        foreach (var sponsorship in sponsorships)
-        {
-            var previousEndDate = sponsorship.EndDate;
-            var allocatedAmount =
-                sponsorship.MonthlyAmount * addedMonths;
-
-            sponsorship.ExtendByMonths(addedMonths);
-
-            entry.Allocations.Add(new PaymentAllocation
+        // تسجيل إيداع الدفعة في رصيد الكافل.
+        entry.CreditTransactions.Add(
+            new SponsorCreditTransaction
             {
-                Sponsorship = sponsorship,
-                AllocatedAmount = allocatedAmount,
-                AddedMonths = addedMonths,
-                PreviousEndDate = previousEndDate,
-                NewEndDate = sponsorship.EndDate
+                SponsorId = sponsor.Id,
+
+                TransactionType =
+                    SponsorCreditTransactionType.Deposit,
+
+                Amount = request.Amount,
+
+                BalanceAfter =
+                    calculation.AvailableAmount,
+
+                Notes =
+                    "إضافة دفعة كفالة إلى رصيد الكافل."
             });
+
+        // لا ننشئ توزيعات بقيمة صفر.
+        if (calculation.AddedMonths > 0)
+        {
+            foreach (var sponsorship in sponsorships)
+            {
+                var previousEndDate =
+                    sponsorship.EndDate;
+
+                var allocatedAmount =
+                    sponsorship.MonthlyAmount *
+                    calculation.AddedMonths;
+
+                sponsorship.ExtendByMonths(
+                    calculation.AddedMonths);
+
+                entry.Allocations.Add(
+                    new PaymentAllocation
+                    {
+                        Sponsorship = sponsorship,
+
+                        AllocatedAmount =
+                            allocatedAmount,
+
+                        AddedMonths =
+                            calculation.AddedMonths,
+
+                        PreviousEndDate =
+                            previousEndDate,
+
+                        NewEndDate =
+                            sponsorship.EndDate
+                    });
+            }
+
+            // تسجيل المبلغ الذي استُخدم لتمديد الكفالات.
+            entry.CreditTransactions.Add(
+                new SponsorCreditTransaction
+                {
+                    SponsorId = sponsor.Id,
+
+                    TransactionType =
+                        SponsorCreditTransactionType
+                            .SponsorshipExtension,
+
+                    Amount =
+                        -calculation.AppliedAmount,
+
+                    BalanceAfter =
+                        calculation.RemainingBalance,
+
+                    Notes =
+                        $"تمديد الكفالات الفعالة " +
+                        $"{calculation.AddedMonths} شهر."
+                });
         }
+
+        sponsor.CreditBalance =
+            calculation.RemainingBalance;
+
+        sponsor.UpdatedAtUtc =
+            DateTime.UtcNow;
 
         dbContext.FinancialEntries.Add(entry);
 
-        // SaveChanges ينفذ إضافة الحركة والتوزيعات
-        // وتمديد جميع الكفالات كعملية واحدة.
-        await dbContext.SaveChangesAsync(cancellationToken);
+        // الحركة المالية والإيداع واستخدام الرصيد
+        // وتمديد الكفالات تحفظ معًا.
+        await dbContext.SaveChangesAsync(
+            cancellationToken);
+
+        await transaction.CommitAsync(
+            cancellationToken);
 
         return entry.Id;
     }
@@ -267,9 +362,7 @@ public sealed class FinancialEntryService(
             .AnyAsync(
                 item =>
                     item.BookNumber == normalizedBook &&
-                    item.ReceiptNumber == normalizedReceipt &&
-                    item.Status ==
-                    FinancialEntryStatus.Confirmed,
+                    item.ReceiptNumber == normalizedReceipt,
                 cancellationToken);
 
         if (exists)

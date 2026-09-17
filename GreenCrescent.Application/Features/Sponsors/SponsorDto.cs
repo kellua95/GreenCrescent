@@ -7,6 +7,6 @@
         string? PhoneNumber,
         string? Address,
         bool IsActive,
-        int ActiveSponsorshipsCount
-        );
+        int ActiveSponsorshipsCount,
+        decimal CreditBalance);
 }

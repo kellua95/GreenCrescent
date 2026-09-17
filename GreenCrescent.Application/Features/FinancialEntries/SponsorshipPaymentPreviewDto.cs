@@ -15,4 +15,8 @@ public sealed record SponsorshipPaymentPreviewDto(
     decimal TotalMonthlyAmount,
     decimal PaidAmount,
     int AddedMonths,
-    IReadOnlyList<SponsorshipAllocationPreviewDto> Allocations);
+    IReadOnlyList<SponsorshipAllocationPreviewDto> Allocations,
+    decimal PreviousCreditBalance = 0m,
+    decimal AvailableCredit = 0m,
+    decimal AppliedCredit = 0m,
+    decimal RemainingCredit = 0m);

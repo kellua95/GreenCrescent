@@ -1,17 +1,23 @@
 ﻿using GreenCrescent.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace GreenCrescent.Infrastructure.Persistence.Configurations
 {
-    public sealed class SponsorConfiguration : IEntityTypeConfiguration<Sponsor>
+    public sealed class SponsorConfiguration :
+        IEntityTypeConfiguration<Sponsor>
     {
-        public void Configure(EntityTypeBuilder<Sponsor> builder)
+        public void Configure(
+            EntityTypeBuilder<Sponsor> builder)
         {
-            builder.ToTable("Sponsors");
+            builder.ToTable(
+                "Sponsors",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "CK_Sponsor_CreditBalance",
+                        "\"CreditBalance\" >= 0");
+                });
 
             builder.HasKey(x => x.Id);
 
@@ -27,6 +33,11 @@ namespace GreenCrescent.Infrastructure.Persistence.Configurations
 
             builder.Property(x => x.IsActive)
                 .HasDefaultValue(true);
+
+            builder.Property(x => x.CreditBalance)
+                .HasPrecision(18, 3)
+                .HasDefaultValue(0m)
+                .IsRequired();
 
             builder.HasIndex(x => x.Name);
             builder.HasIndex(x => x.PhoneNumber);

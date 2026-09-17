@@ -73,6 +73,7 @@
                                 <th>رقم الهاتف</th>
                                 <th>العنوان</th>
                                 <th>الكفالات الفعالة</th>
+                                <th>الرصيد المتاح</th>
                                 <th>الحالة</th>
                                 <th>الإجراءات</th>
                             </tr>
@@ -93,6 +94,12 @@
                                         <span class="count-badge">
                                             @sponsor.ActiveSponsorshipsCount
                                         </span>
+                                    </td>
+
+                                    <td>
+                                        <strong class="credit-balance">
+                                            @sponsor.CreditBalance.ToString("0.000") د.أ
+                                        </strong>
                                     </td>
 
                                     <td>
@@ -252,6 +259,64 @@
             </div>
         </EditForm>
     </AppModal>
+    <AppModal IsOpen="@showStopConfirmation"
+              Title="تأكيد إيقاف الكافل"
+              Label="تنبيه الرصيد"
+              OnClose="CancelStop">
+
+        @if (pendingStopSponsor is not null)
+        {
+            <div class="balance-warning">
+                <span class="balance-warning-icon">!</span>
+
+                <div>
+                    <strong>
+                        هل أنت متأكد من إيقاف
+                        @pendingStopSponsor.Name؟
+                    </strong>
+
+                    <p>
+                        الرصيد المتاح لهذا الكافل:
+                    </p>
+
+                    <div class="balance-warning-value">
+                        @pendingStopSponsor.CreditBalance.ToString("0.000")
+                        د.أ
+                    </div>
+
+                    <small>
+                        لن يتم حذف الرصيد، وسيبقى محفوظًا في حساب
+                        الكافل عند إعادة تفعيله.
+                    </small>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(stopErrorMessage))
+            {
+                <div class="alert error-alert">
+                    @stopErrorMessage
+                </div>
+            }
+
+            <div class="form-actions">
+                <button type="button"
+                        class="danger-button"
+                        disabled="@isChangingStatus"
+                        @onclick="ConfirmStopAsync">
+                    @(isChangingStatus
+                        ? "جاري الإيقاف..."
+                        : "نعم، إيقاف الكافل")
+                </button>
+
+                <button type="button"
+                        class="cancel-button"
+                        disabled="@isChangingStatus"
+                        @onclick="CancelStop">
+                    تراجع
+                </button>
+            </div>
+        }
+    </AppModal>
 </div>
 
 @code {
@@ -259,10 +324,14 @@
     private SponsorFormModel form = new();
 
     private int totalCount;
-private int currentPage = 1;
-private int pageSize = 10;
+    private SponsorDto? pendingStopSponsor;
+    private bool showStopConfirmation;
+    private bool isChangingStatus;
+    private string? stopErrorMessage;
+    private int currentPage = 1;
+    private int pageSize = 10;
 
-private int TotalPages =>
+    private int TotalPages =>
     totalCount == 0
         ? 1
         : (int)Math.Ceiling(
@@ -466,24 +535,34 @@ private IEnumerable<int> VisiblePageNumbers
     {
         ClearMessages();
 
+        if (!sponsor.IsActive)
+        {
+            await ActivateSponsorAsync(sponsor);
+            return;
+        }
+
         try
         {
-            await SponsorService.SetActiveAsync(
-                sponsor.Id,
-                !sponsor.IsActive);
+            var currentSponsor =
+                await SponsorService.GetByIdAsync(
+                    sponsor.Id);
 
-            message = sponsor.IsActive
-                ? "تم إيقاف الكافل."
-                : "تم تفعيل الكافل.";
+            if (currentSponsor is null)
+            {
+                errorMessage =
+                    "الكافل المطلوب غير موجود.";
+                return;
+            }
 
-            await LoadAsync();
+            pendingStopSponsor = currentSponsor;
+            stopErrorMessage = null;
+            showStopConfirmation = true;
         }
         catch (Exception exception)
         {
             errorMessage = exception.Message;
         }
     }
-
     private void CloseForm()
     {
         showForm = false;
@@ -567,5 +646,70 @@ private IEnumerable<int> VisiblePageNumbers
         currentPage = 1;
 
         await LoadAsync();
+    }
+
+    private async Task ConfirmStopAsync()
+    {
+        if (pendingStopSponsor is null)
+        {
+            return;
+        }
+
+        isChangingStatus = true;
+        stopErrorMessage = null;
+
+        try
+        {
+            await SponsorService.SetActiveAsync(
+                pendingStopSponsor.Id,
+                false);
+
+            message =
+                "تم إيقاف الكافل مع الاحتفاظ برصيده.";
+
+            showStopConfirmation = false;
+            pendingStopSponsor = null;
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            stopErrorMessage = exception.Message;
+        }
+        finally
+        {
+            isChangingStatus = false;
+        }
+    }
+
+    private async Task ActivateSponsorAsync(
+        SponsorDto sponsor)
+    {
+        try
+        {
+            await SponsorService.SetActiveAsync(
+                sponsor.Id,
+                true);
+
+            message = "تم تفعيل الكافل.";
+
+            await LoadAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+    }
+
+    private void CancelStop()
+    {
+        if (isChangingStatus)
+        {
+            return;
+        }
+
+        showStopConfirmation = false;
+        pendingStopSponsor = null;
+        stopErrorMessage = null;
     }
 }

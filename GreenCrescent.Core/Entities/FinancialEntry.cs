@@ -34,5 +34,9 @@ namespace GreenCrescent.Core.Entities
 
         public ICollection<PaymentAllocation> Allocations { get; set; } =
             new List<PaymentAllocation>();
+
+        public ICollection<SponsorCreditTransaction> CreditTransactions
+        { get; set; } =
+        new List<SponsorCreditTransaction>();
     }
 }

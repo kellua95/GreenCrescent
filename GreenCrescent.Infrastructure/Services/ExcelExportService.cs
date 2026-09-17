@@ -199,36 +199,61 @@ public sealed class ExcelExportService : IExcelExportService
         string reportTitle)
     {
         using var workbook = new XLWorkbook();
-        var sheet = workbook.Worksheets.Add("سجل الكفلاء");
+
+        var sheet =
+            workbook.Worksheets.Add("سجل الكفلاء");
+
         sheet.RightToLeft = true;
 
         var headers = new[]
         {
-            "اسم الكافل",
-            "رقم الهاتف",
-            "العنوان",
-            "عدد الكفالات الفعالة",
-            "الحالة"
-        };
+        "اسم الكافل",
+        "رقم الهاتف",
+        "العنوان",
+        "عدد الكفالات الفعالة",
+        "الرصيد المتاح",
+        "الحالة"
+    };
 
-        var rowNumber = PrepareSheet(sheet, reportTitle, headers);
+        var rowNumber =
+            PrepareSheet(
+                sheet,
+                reportTitle,
+                headers);
 
         foreach (var item in rows)
         {
-            sheet.Cell(rowNumber, 1).Value = item.Name;
+            sheet.Cell(rowNumber, 1).Value =
+                item.Name;
+
             sheet.Cell(rowNumber, 2).Value =
                 item.PhoneNumber ?? string.Empty;
+
             sheet.Cell(rowNumber, 3).Value =
                 item.Address ?? string.Empty;
+
             sheet.Cell(rowNumber, 4).Value =
                 item.ActiveSponsorshipsCount;
+
             sheet.Cell(rowNumber, 5).Value =
-                item.IsActive ? "فعّال" : "موقوف";
+                item.CreditBalance;
+
+            sheet.Cell(rowNumber, 6).Value =
+                item.IsActive
+                    ? "فعّال"
+                    : "موقوف";
 
             rowNumber++;
         }
 
-        FinishSheet(sheet, headers.Length, rowNumber - 1);
+        sheet.Column(5)
+            .Style.NumberFormat.Format =
+                "#,##0.000";
+
+        FinishSheet(
+            sheet,
+            headers.Length,
+            rowNumber - 1);
 
         return Save(workbook);
     }

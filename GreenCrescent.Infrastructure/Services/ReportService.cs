@@ -196,7 +196,8 @@ public sealed class ReportService(
                 item.IsActive,
                 item.Sponsorships.Count(sponsorship =>
                     sponsorship.Status ==
-                    SponsorshipStatus.Active)))
+                    SponsorshipStatus.Active),
+                item.CreditBalance))
             .ToListAsync(cancellationToken);
     }
 

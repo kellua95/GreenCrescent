@@ -50,7 +50,9 @@ namespace GreenCrescent.Infrastructure.Services
                     sponsor.IsActive,
                     sponsor.Sponsorships.Count(sponsorship =>
                         sponsorship.Status ==
-                        SponsorshipStatus.Active)))
+                        SponsorshipStatus.Active),
+                    
+                    sponsor.CreditBalance))
                 .ToListAsync(cancellationToken);
         }
 
@@ -120,7 +122,9 @@ namespace GreenCrescent.Infrastructure.Services
                     item.IsActive,
                     item.Sponsorships.Count(sponsorship =>
                         sponsorship.Status ==
-                        SponsorshipStatus.Active)))
+                        SponsorshipStatus.Active),
+                    
+                    item.CreditBalance))
                 .ToListAsync(cancellationToken);
 
             return new PagedResult<SponsorDto>(
@@ -144,7 +148,8 @@ namespace GreenCrescent.Infrastructure.Services
                     sponsor.IsActive,
                     sponsor.Sponsorships.Count(sponsorship =>
                         sponsorship.Status ==
-                        SponsorshipStatus.Active)))
+                        SponsorshipStatus.Active),
+                    sponsor.CreditBalance))
                 .FirstOrDefaultAsync(cancellationToken);
         }
 
