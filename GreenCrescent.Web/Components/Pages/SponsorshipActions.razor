@@ -7,6 +7,7 @@
 @using GreenCrescent.Core.Enums
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Admin,Staff")]
+@implements IDisposable
 @inject ISponsorshipService SponsorshipService
 @inject ISponsorService SponsorService
 @inject IBeneficiaryService BeneficiaryService
@@ -480,6 +481,8 @@
 
     private bool isLoading = true;
     private bool isSaving;
+    private CancellationTokenSource?
+    replacementSearchCancellation;
 
     protected override async Task OnInitializedAsync()
     {
@@ -585,57 +588,138 @@
         }
     }
 
-    private async Task ReplacementSponsorChanged(ChangeEventArgs args)
-    {
-        replacementSearch =
-            args.Value?.ToString() ?? string.Empty;
-
-        selectedSponsor = null;
-
-        if (string.IsNullOrWhiteSpace(replacementSearch))
-        {
-            sponsorResults = [];
-            return;
-        }
-
-        var results = await SponsorService.SearchAsync(
-            replacementSearch);
-
-        sponsorResults = results
-            .Where(item =>
-                item.Id != selectedSponsorship?.SponsorId)
-            .ToList();
-    }
-
-    private async Task ReplacementBeneficiaryChanged(
+    private async Task ReplacementSponsorChanged(
         ChangeEventArgs args)
     {
         replacementSearch =
             args.Value?.ToString() ?? string.Empty;
 
-        selectedBeneficiary = null;
+        selectedSponsor = null;
+        sponsorResults = [];
 
-        if (string.IsNullOrWhiteSpace(replacementSearch))
+        replacementSearchCancellation?.Cancel();
+        replacementSearchCancellation?.Dispose();
+
+        replacementSearchCancellation =
+            new CancellationTokenSource();
+
+        var cancellationToken =
+            replacementSearchCancellation.Token;
+
+        var searchText =
+            replacementSearch.Trim();
+
+        if (string.IsNullOrWhiteSpace(searchText))
         {
-            beneficiaryResults = [];
             return;
         }
 
-        var results = await BeneficiaryService.SearchAsync(
-            replacementSearch);
+        try
+        {
+            await Task.Delay(
+                300,
+                cancellationToken);
 
-        beneficiaryResults = results
-    .Where(item =>
-        !item.IsArchived &&
-        item.Id != selectedSponsorship?.BeneficiaryId &&
-        (
-            item.Status ==
-                BeneficiaryStatus.WaitingForSponsor ||
-            item.Status ==
-                BeneficiaryStatus.Sponsored
-        ) &&
-        item.ActiveSponsorshipsCount < 3)
-    .ToList();
+            var results =
+                await SponsorService.SearchAsync(
+                    searchText,
+                    includeInactive: false,
+                    cancellationToken);
+
+            if (cancellationToken.IsCancellationRequested ||
+                !string.Equals(
+                    searchText,
+                    replacementSearch.Trim(),
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            sponsorResults = results
+                .Where(item =>
+                    item.Id !=
+                    selectedSponsorship?.SponsorId)
+                .ToList();
+        }
+        catch (OperationCanceledException)
+        {
+            // طبيعي: المستخدم كتب حرفًا جديدًا.
+        }
+        catch (Exception exception)
+        {
+            sponsorResults = [];
+            errorMessage =
+                $"تعذر البحث عن الكافل: {exception.Message}";
+        }
+    }
+    private async Task ReplacementBeneficiaryChanged(
+    ChangeEventArgs args)
+    {
+        replacementSearch =
+            args.Value?.ToString() ?? string.Empty;
+
+        selectedBeneficiary = null;
+        beneficiaryResults = [];
+
+        replacementSearchCancellation?.Cancel();
+        replacementSearchCancellation?.Dispose();
+
+        replacementSearchCancellation =
+            new CancellationTokenSource();
+
+        var cancellationToken =
+            replacementSearchCancellation.Token;
+
+        var searchText =
+            replacementSearch.Trim();
+
+        if (string.IsNullOrWhiteSpace(searchText))
+        {
+            return;
+        }
+
+        try
+        {
+            await Task.Delay(
+                300,
+                cancellationToken);
+
+            var results =
+                await BeneficiaryService.SearchAsync(
+                    searchText,
+                    cancellationToken:
+                        cancellationToken);
+
+            if (cancellationToken.IsCancellationRequested ||
+                !string.Equals(
+                    searchText,
+                    replacementSearch.Trim(),
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            beneficiaryResults = results
+                .Where(item =>
+                    !item.IsArchived &&
+                    item.Id !=
+                        selectedSponsorship?.BeneficiaryId &&
+                    item.Status is
+                        BeneficiaryStatus.WaitingForSponsor or
+                        BeneficiaryStatus.Sponsored &&
+                    item.ActiveSponsorshipsCount < 3)
+                .ToList();
+        }
+        catch (OperationCanceledException)
+        {
+            // طبيعي: المستخدم كتب حرفًا جديدًا.
+        }
+        catch (Exception exception)
+        {
+            beneficiaryResults = [];
+            errorMessage =
+                $"تعذر البحث عن المكفول: {exception.Message}";
+        }
     }
 
     private void SelectReplacementSponsor(SponsorDto sponsor)
@@ -738,6 +822,7 @@
 
     private void ResetActionFields()
     {
+        replacementSearchCancellation?.Cancel();
         selectedSponsor = null;
         selectedBeneficiary = null;
         sponsorResults = [];
@@ -904,5 +989,10 @@
         {
             isStopping = false;
         }
+    }
+    public void Dispose()
+    {
+        replacementSearchCancellation?.Cancel();
+        replacementSearchCancellation?.Dispose();
     }
 }

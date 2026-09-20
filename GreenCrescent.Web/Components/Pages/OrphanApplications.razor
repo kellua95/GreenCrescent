@@ -1,0 +1,725 @@
+﻿@page "/orphan-applications"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Staff")]
+
+@using Microsoft.AspNetCore.Authorization
+@using GreenCrescent.Application.Features.OrphanApplications
+@using GreenCrescent.Core.Enums
+@using Microsoft.JSInterop
+
+@inject IOrphanApplicationService ApplicationService
+@inject ILogger<OrphanApplications> Logger
+@inject IJSRuntime JS
+
+<PageTitle>طلبات كفالة الأيتام</PageTitle>
+
+<div class="review-page" dir="rtl">
+    <header class="page-heading">
+        <div>
+            <h1>طلبات كفالة الأيتام</h1>
+            <p>مراجعة الاستمارات ودراسة الطلبات واتخاذ القرار.</p>
+        </div>
+
+        <a class="button secondary"
+           href="orphan-application"
+           target="_blank"
+           rel="noopener">
+            تقديم طلب جديد
+        </a>
+    </header>
+
+    @if (errorMessage is not null)
+    {
+        <div class="notice error" role="alert">@errorMessage</div>
+    }
+
+    @if (successMessage is not null)
+    {
+        <div class="notice success" role="status">@successMessage</div>
+    }
+
+    <fieldset disabled="@isBusy" class="controls">
+        <div class="filters">
+            <label>
+                البحث
+                <input @bind="searchTerm"
+                       placeholder="الاسم، الرقم الوطني، رقم التتبع..." />
+            </label>
+
+            <label>
+                حالة الطلب
+                <select @bind="statusFilter">
+                    <option value="">الكل</option>
+                    <option value="1">جديد</option>
+                    <option value="2">قيد الدراسة</option>
+                    <option value="3">مقبول</option>
+                    <option value="4">الأرشيف — مرفوض</option>
+                </select>
+            </label>
+
+            <button type="button"
+                    class="button primary"
+                    @onclick="SearchAsync">
+                بحث
+            </button>
+        </div>
+    </fieldset>
+
+    <section class="card">
+        @if (isBusy && rows.Count == 0)
+        {
+            <p class="empty">جاري تحميل الطلبات...</p>
+        }
+        else if (rows.Count == 0)
+        {
+            <p class="empty">لا توجد طلبات مطابقة.</p>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>اليتيم</th>
+                            <th>الرقم الوطني</th>
+                            <th>العمر</th>
+                            <th>مقدم الطلب</th>
+                            <th>الهاتف</th>
+                            <th>تاريخ التقديم</th>
+                            <th>الحالة</th>
+                            <th>الإجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in rows)
+                        {
+                            <tr @key="item.Id">
+                                <td><strong>@item.OrphanName</strong></td>
+                                <td>@item.OrphanNationalNumber</td>
+                                <td>@item.AgeAtSubmission سنة</td>
+                                <td>@item.ApplicantName</td>
+                                <td>@item.ApplicantPhoneNumber</td>
+                                <td>@item.SubmittedAtUtc.ToString("yyyy/MM/dd")</td>
+                                <td>
+                                    <span class="badge">
+                                        @StatusText(item.Status)
+                                    </span>
+
+                                    @if (item.IsAutomaticallyRejected)
+                                    {
+                                        <small class="automatic">رفض تلقائي</small>
+                                    }
+                                </td>
+                                <td>
+                                    <button type="button"
+                                            class="button secondary"
+                                            disabled="@isBusy"
+                                            @onclick="() => OpenAsync(item.Id)">
+                                        عرض التفاصيل
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <div class="pagination">
+            <span>عدد النتائج: @totalCount</span>
+
+            <div class="page-buttons">
+                <button type="button"
+                        class="button secondary"
+                        disabled="@(isBusy || currentPage <= 1)"
+                        @onclick="() => ChangePageAsync(currentPage - 1)">
+                    السابق
+                </button>
+
+                <span>@currentPage / @TotalPages</span>
+
+                <button type="button"
+                        class="button secondary"
+                        disabled="@(isBusy || currentPage >= TotalPages)"
+                        @onclick="() => ChangePageAsync(currentPage + 1)">
+                    التالي
+                </button>
+            </div>
+
+            <label>
+                عدد السجلات
+                <select value="@pageSize"
+                        disabled="@isBusy"
+                        @onchange="PageSizeChangedAsync">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                </select>
+            </label>
+        </div>
+    </section>
+
+    @if (selected is { } details)
+    {
+        <section class="card details printable-application">
+            <div class="print-heading">
+                <img src="favicon.png" alt="شعار الجمعية" />
+
+                <div>
+                    <h2>جمعية الهلال الأخضر الخيرية</h2>
+                    <p>فرع إربد</p>
+                    <h3>استمارة طلب كفالة يتيم</h3>
+                </div>
+
+                <div class="print-reference">
+                    <p>الرقم: ........................</p>
+                    <p>رقم التتبع: @details.TrackingCode</p>
+                    <p>
+                        تاريخ التقديم:
+                        @details.SubmittedAtUtc.ToString("yyyy/MM/dd")
+                    </p>
+                </div>
+            </div>
+            <header class="details-heading">
+                <div>
+                    <h2>@details.OrphanFullName</h2>
+                    <p>
+                        @details.TrackingCode — @StatusText(details.Status)
+                    </p>
+                </div>
+
+                <div class="detail-actions no-print">
+                    <button type="button"
+                            class="button primary"
+                            disabled="@isBusy"
+                            @onclick="PrintApplicationAsync">
+                        طباعة الطلب
+                    </button>
+
+                    <button type="button"
+                            class="button secondary"
+                            disabled="@isBusy"
+                            @onclick="CloseDetails">
+                        إغلاق التفاصيل
+                    </button>
+                </div>
+            </header>
+
+            @if (details.IsAutomaticallyRejected)
+            {
+                <div class="notice warning">
+                    تم رفض الطلب تلقائيًا بسبب شرط العمر.
+                    يمكن الاطلاع عليه، ولا يمكن الموافقة عليه.
+                </div>
+            }
+
+            <h3>بيانات اليتيم</h3>
+            <dl class="details-grid">
+                <div><dt>الرقم الوطني</dt><dd>@details.OrphanNationalNumber</dd></div>
+                <div><dt>تاريخ الميلاد</dt><dd>@DateText(details.DateOfBirth)</dd></div>
+                <div><dt>الجنس</dt><dd>@GenderText(details.Gender)</dd></div>
+                <div><dt>الجنسية</dt><dd>@details.Nationality</dd></div>
+                <div><dt>العنوان</dt><dd>@details.Address</dd></div>
+                <div><dt>الهاتف</dt><dd>@Text(details.PhoneNumber)</dd></div>
+                <div><dt>تاريخ وفاة الأب</dt><dd>@DateText(details.FatherDeathDate)</dd></div>
+                <div><dt>سبب الوفاة</dt><dd>@details.FatherDeathReason</dd></div>
+            </dl>
+
+            <h3>مقدم الطلب</h3>
+            <dl class="details-grid">
+                <div><dt>الاسم</dt><dd>@details.ApplicantName</dd></div>
+                <div><dt>الهاتف</dt><dd>@details.ApplicantPhoneNumber</dd></div>
+                <div><dt>صلة القرابة</dt><dd>@Text(details.ApplicantRelationship)</dd></div>
+            </dl>
+
+            <h3>بيانات الأم</h3>
+            <dl class="details-grid">
+                <div><dt>الاسم</dt><dd>@details.MotherName</dd></div>
+                <div><dt>الرقم الوطني</dt><dd>@Text(details.MotherNationalNumber)</dd></div>
+                <div><dt>تاريخ الميلاد</dt><dd>@DateText(details.MotherDateOfBirth)</dd></div>
+                <div><dt>الجنسية</dt><dd>@Text(details.MotherNationality)</dd></div>
+                <div><dt>الهاتف</dt><dd>@Text(details.MotherPhoneNumber)</dd></div>
+                <div><dt>على قيد الحياة</dt><dd>@YesNo(details.IsMotherAlive)</dd></div>
+            </dl>
+
+            <h3>المعيل أو الوصي</h3>
+            <dl class="details-grid">
+                <div><dt>الاسم</dt><dd>@details.GuardianName</dd></div>
+                <div><dt>الرقم الوطني</dt><dd>@details.GuardianNationalNumber</dd></div>
+                <div><dt>الهاتف</dt><dd>@details.GuardianPhoneNumber</dd></div>
+                <div><dt>صلة القرابة</dt><dd>@Text(details.GuardianRelationship)</dd></div>
+                <div><dt>تاريخ الميلاد</dt><dd>@DateText(details.GuardianDateOfBirth)</dd></div>
+                <div><dt>الجنسية</dt><dd>@Text(details.GuardianNationality)</dd></div>
+                <div><dt>الجنس</dt><dd>@GenderText(details.GuardianGender)</dd></div>
+            </dl>
+
+            <h3>الوضع الصحي والتعليمي</h3>
+            <dl class="details-grid">
+                <div><dt>يوجد مرض</dt><dd>@YesNo(details.HasIllness)</dd></div>
+                <div><dt>الحالة الصحية</dt><dd>@Text(details.IllnessDescription)</dd></div>
+                <div><dt>يوجد تأمين صحي</dt><dd>@YesNo(details.HasHealthInsurance)</dd></div>
+                <div><dt>جهة التأمين</dt><dd>@Text(details.HealthInsuranceProvider)</dd></div>
+                <div><dt>المرحلة الدراسية</dt><dd>@Text(details.EducationStage)</dd></div>
+                <div><dt>التحصيل الدراسي</dt><dd>@Text(details.AcademicAchievement)</dd></div>
+                <div><dt>سبب ترك المدرسة</dt><dd>@Text(details.SchoolDropoutReason)</dd></div>
+                <div><dt>التوجه البديل</dt><dd>@Text(details.AlternativeDirection)</dd></div>
+            </dl>
+
+            <h3>الوضع المالي والأسري</h3>
+            <dl class="details-grid">
+                <div><dt>عدد أفراد الأسرة</dt><dd>@details.FamilyMembersCount</dd></div>
+                <div><dt>عدد المكفولين</dt><dd>@details.SponsoredFamilyMembersCount</dd></div>
+                <div><dt>الدخل الشهري</dt><dd>@details.TotalMonthlyIncome.ToString("0.000") د.أ</dd></div>
+                <div><dt>المصروفات الشهرية</dt><dd>@details.TotalMonthlyExpenses.ToString("0.000") د.أ</dd></div>
+            </dl>
+
+            @if (details.FamilyMembers.Count > 0)
+            {
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>الاسم</th>
+                                <th>الميلاد</th>
+                                <th>الجنس</th>
+                                <th>القرابة</th>
+                                <th>التعليم</th>
+                                <th>الحالة الاجتماعية</th>
+                                <th>الصحة</th>
+                                <th>المهنة</th>
+                                <th>الدخل</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var member in details.FamilyMembers)
+                            {
+                                <tr @key="member.Id">
+                                    <td>@member.Name</td>
+                                    <td>@DateText(member.DateOfBirth)</td>
+                                    <td>@GenderText(member.Gender)</td>
+                                    <td>@Text(member.Relationship)</td>
+                                    <td>@Text(member.EducationalStatus)</td>
+                                    <td>@Text(member.SocialStatus)</td>
+                                    <td>@Text(member.HealthStatus)</td>
+                                    <td>@Text(member.Occupation)</td>
+                                    <td>@member.MonthlyIncome.ToString("0.000")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p>لم تُسجل تفاصيل أفراد الأسرة.</p>
+            }
+
+            <h3>الملاحظات ونتيجة المراجعة</h3>
+            <dl class="details-grid">
+                <div><dt>الملاحظات</dt><dd>@Text(details.Notes)</dd></div>
+                <div><dt>سبب القرار</dt><dd>@Text(details.DecisionReason)</dd></div>
+                <div>
+                    <dt>تاريخ المراجعة</dt>
+                    <dd>@(details.ReviewedAtUtc?.ToString("yyyy/MM/dd HH:mm") ?? "—")</dd>
+                </div>
+                <div>
+                    <dt>رقم المكفول في النظام</dt>
+                    <dd>@(details.BeneficiaryId?.ToString() ?? "—")</dd>
+                </div>
+            </dl>
+
+            @if (CanReview)
+            {
+                <fieldset disabled="@isBusy" class="decision-panel">
+                    <legend>قرار الموظف</legend>
+
+                    <label for="review-notes">
+                        ملاحظات الموافقة أو سبب الرفض
+                    </label>
+
+                    <textarea id="review-notes"
+                              @bind="reviewNotes"
+                              maxlength="1000"
+                              placeholder="سبب الرفض إلزامي عند رفض الطلب..."></textarea>
+
+                    <div class="decision-buttons">
+                        @if (details.Status == OrphanApplicationStatus.Submitted)
+                        {
+                            <button type="button"
+                                    class="button secondary"
+                                    @onclick="MarkUnderReviewAsync">
+                                تحويل إلى قيد الدراسة
+                            </button>
+                        }
+
+                        <button type="button"
+                                class="button primary"
+                                @onclick="() => pendingDecision = ReviewDecision.Approve">
+                            موافقة
+                        </button>
+
+                        <button type="button"
+                                class="button danger"
+                                @onclick="() => pendingDecision = ReviewDecision.Reject">
+                            رفض
+                        </button>
+                    </div>
+
+                    @if (pendingDecision != ReviewDecision.None)
+                    {
+                        <div class="confirmation" role="alert">
+                            <p>
+                                @(pendingDecision == ReviewDecision.Approve
+                                    ? "هل تؤكد الموافقة وإضافة اليتيم إلى سجل المكفولين بحالة انتظار كافل؟"
+                                    : "هل تؤكد رفض الطلب وحفظه في الأرشيف؟")
+                            </p>
+
+                            <div class="decision-buttons">
+                                <button type="button"
+                                        class="button primary"
+                                        @onclick="ConfirmDecisionAsync">
+                                    تأكيد القرار
+                                </button>
+
+                                <button type="button"
+                                        class="button secondary"
+                                        @onclick="() => pendingDecision = ReviewDecision.None">
+                                    إلغاء
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </fieldset>
+            }
+            <div class="print-signatures">
+                <div>
+                    <strong>اسم الموظف وتوقيعه</strong>
+                    <p>........................................</p>
+                </div>
+
+                <div>
+                    <strong>اعتماد الإدارة</strong>
+                    <p>........................................</p>
+                </div>
+
+                <div>
+                    <strong>ختم الجمعية</strong>
+                    <p>........................................</p>
+                </div>
+            </div>
+        </section>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<OrphanApplicationListItemDto> rows = [];
+    private OrphanApplicationDetailsDto? selected;
+
+    private string searchTerm = string.Empty;
+    private string statusFilter = "1";
+    private string reviewNotes = string.Empty;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalCount;
+
+    private bool isBusy;
+    private string? errorMessage;
+    private string? successMessage;
+    private ReviewDecision pendingDecision;
+
+    private async Task PrintApplicationAsync()
+    {
+        if (selected is null || isBusy)
+        {
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+
+        try
+        {
+            await using var module =
+                await JS.InvokeAsync<IJSObjectReference>(
+                    "import",
+                    "./js/orphan-print.js");
+
+            await module.InvokeVoidAsync("printApplication");
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "Failed to print orphan application");
+
+            errorMessage =
+                "تعذر تجهيز الطلب للطباعة. حدّث الصفحة وحاول مجددًا.";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private int TotalPages =>
+        Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+
+    private bool CanReview =>
+        selected is not null &&
+        !selected.IsAutomaticallyRejected &&
+        (selected.Status is OrphanApplicationStatus.Submitted
+            or OrphanApplicationStatus.UnderReview);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RunAsync(LoadRowsAsync);
+    }
+
+    private async Task LoadRowsAsync()
+    {
+        OrphanApplicationStatus? status =
+            int.TryParse(statusFilter, out var value)
+                ? (OrphanApplicationStatus)value
+                : null;
+
+        var result = await ApplicationService.SearchAsync(
+            searchTerm,
+            status,
+            currentPage,
+            pageSize);
+
+        totalCount = result.TotalCount;
+
+        // عند خروج آخر طلب من الصفحة الحالية بعد اتخاذ القرار.
+        if (currentPage > TotalPages)
+        {
+            currentPage = TotalPages;
+
+            result = await ApplicationService.SearchAsync(
+                searchTerm,
+                status,
+                currentPage,
+                pageSize);
+
+            totalCount = result.TotalCount;
+        }
+
+        rows = result.Items;
+    }
+
+    private async Task SearchAsync()
+    {
+        await RunAsync(async () =>
+        {
+            currentPage = 1;
+            CloseDetails();
+            await LoadRowsAsync();
+        });
+    }
+
+    private async Task ChangePageAsync(int pageNumber)
+    {
+        await RunAsync(async () =>
+        {
+            currentPage = Math.Clamp(pageNumber, 1, TotalPages);
+            CloseDetails();
+            await LoadRowsAsync();
+        });
+    }
+
+    private async Task PageSizeChangedAsync(ChangeEventArgs args)
+    {
+        if (!int.TryParse(args.Value?.ToString(), out var size) ||
+            size is not (10 or 25 or 50))
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            pageSize = size;
+            currentPage = 1;
+            CloseDetails();
+            await LoadRowsAsync();
+        });
+    }
+
+    private async Task OpenAsync(int id)
+    {
+        await RunAsync(async () =>
+        {
+            CloseDetails();
+
+            selected = await ApplicationService.GetByIdAsync(id);
+
+            if (selected is null)
+            {
+                errorMessage = "الطلب غير موجود. حدّث القائمة.";
+            }
+        });
+    }
+
+    private void CloseDetails()
+    {
+        selected = null;
+        reviewNotes = string.Empty;
+        pendingDecision = ReviewDecision.None;
+    }
+
+    private async Task MarkUnderReviewAsync()
+    {
+        if (!CanReview || selected is null)
+        {
+            return;
+        }
+
+        var id = selected.Id;
+
+        await RunAsync(async () =>
+        {
+            await ApplicationService.MarkUnderReviewAsync(id);
+
+            successMessage = "تم تحويل الطلب إلى قيد الدراسة.";
+            pendingDecision = ReviewDecision.None;
+
+            await RefreshAfterDecisionAsync(id);
+        });
+    }
+
+    private async Task ConfirmDecisionAsync()
+    {
+        if (!CanReview || selected is null || isBusy)
+        {
+            return;
+        }
+
+        var id = selected.Id;
+        var decision = pendingDecision;
+        var notes = reviewNotes.Trim();
+
+        if (decision == ReviewDecision.None)
+        {
+            return;
+        }
+
+        if (decision == ReviewDecision.Reject &&
+            string.IsNullOrWhiteSpace(notes))
+        {
+            errorMessage = "اكتب سبب رفض الطلب أولًا.";
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            if (decision == ReviewDecision.Approve)
+            {
+                var beneficiaryId = await ApplicationService.ApproveAsync(
+                    new ApproveOrphanApplicationRequest(
+                        id,
+                        string.IsNullOrWhiteSpace(notes) ? null : notes));
+
+                successMessage =
+                    $"تمت الموافقة وإضافة المكفول بحالة انتظار كافل. المعرّف الداخلي: {beneficiaryId}.";
+            }
+            else
+            {
+                await ApplicationService.RejectAsync(
+                    new RejectOrphanApplicationRequest(id, notes));
+
+                successMessage = "تم رفض الطلب وحفظه في الأرشيف.";
+            }
+
+            pendingDecision = ReviewDecision.None;
+            reviewNotes = string.Empty;
+
+            await RefreshAfterDecisionAsync(id);
+        });
+    }
+
+    private async Task RefreshAfterDecisionAsync(int id)
+    {
+        // الحفظ تم بالفعل؛ فشل التحديث لا يعني فشل القرار.
+        selected = null;
+
+        try
+        {
+            await LoadRowsAsync();
+            selected = await ApplicationService.GetByIdAsync(id);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception,
+                "Failed to refresh orphan application {ApplicationId}", id);
+
+            errorMessage =
+                "تم حفظ القرار، لكن تعذر تحديث العرض. اضغط بحث لتحديث القائمة.";
+        }
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        if (isBusy)
+        {
+            return;
+        }
+
+        isBusy = true;
+        errorMessage = null;
+        successMessage = null;
+
+        try
+        {
+            await action();
+        }
+        catch (InvalidOperationException exception)
+        {
+            Logger.LogWarning(exception, "Orphan application operation failed");
+            errorMessage = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Orphan application operation failed");
+
+            errorMessage =
+                "تعذر إكمال العملية. حدّث الطلب للتحقق من حالته قبل إعادة المحاولة.";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private static string StatusText(OrphanApplicationStatus status) =>
+        status switch
+        {
+            OrphanApplicationStatus.Submitted => "جديد",
+            OrphanApplicationStatus.UnderReview => "قيد الدراسة",
+            OrphanApplicationStatus.Approved => "مقبول",
+            OrphanApplicationStatus.Rejected => "مرفوض",
+            _ => status.ToString()
+        };
+
+    private static string GenderText(PersonGender? gender) =>
+        gender switch
+        {
+            PersonGender.Male => "ذكر",
+            PersonGender.Female => "أنثى",
+            _ => "—"
+        };
+
+    private static string DateText(DateOnly? date) =>
+        date?.ToString("yyyy/MM/dd") ?? "—";
+
+    private static string Text(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string YesNo(bool value) => value ? "نعم" : "لا";
+
+    private enum ReviewDecision
+    {
+        None,
+        Approve,
+        Reject
+    }
+}

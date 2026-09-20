@@ -21,6 +21,7 @@ public sealed class ExcelExportService : IExcelExportService
         {
             "رقم الملف",
             "اسم المكفول",
+            "تاريخ الميلاد",
             "اسم الكافل",
             "هاتف الكافل",
             "المعرّف",
@@ -34,22 +35,33 @@ public sealed class ExcelExportService : IExcelExportService
         {
             sheet.Cell(rowNumber, 1).Value = item.FileNumber;
             sheet.Cell(rowNumber, 2).Value = item.BeneficiaryName;
-            sheet.Cell(rowNumber, 3).Value = item.SponsorName;
-            sheet.Cell(rowNumber, 4).Value =
-                item.SponsorPhoneNumber ?? string.Empty;
+            if (item.BeneficiaryDateOfBirth != null)
+            {
+                sheet.Cell(rowNumber, 3).Value = item.BeneficiaryDateOfBirth.Value.ToDateTime(
+                        TimeOnly.MinValue);
+            }
+            else
+            {
+                sheet.Cell(rowNumber, 3).Value = "—";
+            }
+            sheet.Cell(rowNumber, 4).Value = item.SponsorName;
             sheet.Cell(rowNumber, 5).Value =
+                item.SponsorPhoneNumber ?? string.Empty;
+            sheet.Cell(rowNumber, 6).Value =
                 item.ResponsibleSheikhName;
-            sheet.Cell(rowNumber, 6).Value = item.MonthlyAmount;
-            sheet.Cell(rowNumber, 7).Value =
-                item.StartDate.ToDateTime(TimeOnly.MinValue);
+            sheet.Cell(rowNumber, 7).Value = item.MonthlyAmount;
             sheet.Cell(rowNumber, 8).Value =
+                item.StartDate.ToDateTime(TimeOnly.MinValue);
+            sheet.Cell(rowNumber, 9).Value =
                 item.EndDate.ToDateTime(TimeOnly.MinValue);
+            
 
             rowNumber++;
         }
 
-        sheet.Column(6).Style.NumberFormat.Format = "#,##0.000";
-        sheet.Columns(7, 8).Style.DateFormat.Format = "yyyy/MM/dd";
+        sheet.Column(7).Style.NumberFormat.Format = "#,##0.000";
+        sheet.Columns(8, 9).Style.DateFormat.Format = "yyyy/MM/dd";
+        sheet.Column(3).Style.DateFormat.Format = "yyyy/MM/dd";
 
         FinishSheet(sheet, headers.Length, rowNumber - 1);
 
@@ -75,6 +87,7 @@ public sealed class ExcelExportService : IExcelExportService
             "المعرف",
             "حالة الكفالة",
             "المكفول الحالي",
+            "تاريخ الميلاد",
             "هاتف المكفول",
             "المكفول السابق الأول",
             "المكفول السابق الثاني",
@@ -104,15 +117,24 @@ public sealed class ExcelExportService : IExcelExportService
             sheet.Cell(rowNumber, 9).Value =
                 GetSponsorshipStatus(item.Status);
             sheet.Cell(rowNumber, 10).Value = item.BeneficiaryName;
-            sheet.Cell(rowNumber, 11).Value =
-                item.BeneficiaryPhoneNumber ?? string.Empty;
+            if (item.BeneficiaryDateOfBirth != null)
+            {
+                sheet.Cell(rowNumber, 11).Value = item.BeneficiaryDateOfBirth.Value.ToDateTime(
+                        TimeOnly.MinValue); ;
+            }
+            else
+            {
+                sheet.Cell(rowNumber, 11).Value = "—";
+            }
             sheet.Cell(rowNumber, 12).Value =
-                item.FirstPreviousBeneficiaryName ?? string.Empty;
+                item.BeneficiaryPhoneNumber ?? string.Empty;
             sheet.Cell(rowNumber, 13).Value =
-                item.SecondPreviousBeneficiaryName ?? string.Empty;
+                item.FirstPreviousBeneficiaryName ?? string.Empty;
             sheet.Cell(rowNumber, 14).Value =
-                item.ThirdPreviousBeneficiaryName ?? string.Empty;
+                item.SecondPreviousBeneficiaryName ?? string.Empty;
             sheet.Cell(rowNumber, 15).Value =
+                item.ThirdPreviousBeneficiaryName ?? string.Empty;
+            sheet.Cell(rowNumber, 16).Value =
                 item.Notes ?? string.Empty;
 
             rowNumber++;
@@ -120,6 +142,7 @@ public sealed class ExcelExportService : IExcelExportService
 
         sheet.Column(5).Style.NumberFormat.Format = "#,##0.000";
         sheet.Columns(6, 7).Style.DateFormat.Format = "yyyy/MM/dd";
+        sheet.Column(11).Style.DateFormat.Format = "yyyy/MM/dd";
 
         FinishSheet(sheet, headers.Length, rowNumber - 1);
 

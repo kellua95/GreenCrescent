@@ -19,6 +19,26 @@ namespace GreenCrescent.Core.Entities
 
         public string? ArchiveReason { get; set; }
 
+        public string? NationalNumber { get; set; }
+
+        public PersonGender? Gender { get; set; }
+
+        public string? Nationality { get; set; }
+
+        public string? Address { get; set; }
+
+        public string? GuardianName { get; set; }
+
+        public string? GuardianNationalNumber { get; set; }
+
+        public string? GuardianPhoneNumber { get; set; }
+
+        public string? GuardianRelationship { get; set; }
+
+        public DateOnly? FatherDeathDate { get; set; }
+
+        public string? FatherDeathReason { get; set; }
+
         public BeneficiaryStatus Status { get; set; } =
             BeneficiaryStatus.WaitingForSponsor;
 

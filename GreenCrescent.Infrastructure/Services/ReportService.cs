@@ -37,7 +37,10 @@ public sealed class ReportService(
                     item.Sponsor.PhoneNumber,
                     item.MonthlyAmount,
                     item.StartDate,
-                    item.EndDate))
+                    item.EndDate)
+                {
+                    BeneficiaryDateOfBirth = item.Beneficiary.DateOfBirth,
+                })
             .ToListAsync(cancellationToken);
     }
 
@@ -81,7 +84,10 @@ public sealed class ReportService(
                     item.StartDate,
                     item.EndDate,
                     item.Status,
-                    item.Notes))
+                    item.Notes)
+                {
+                    BeneficiaryDateOfBirth = item.Beneficiary.DateOfBirth,
+                })
             .ToListAsync(cancellationToken);
 
         if (rows.Count == 0)
@@ -296,7 +302,12 @@ public sealed class ReportService(
                     item.Sponsor.PhoneNumber,
                     item.MonthlyAmount,
                     item.StartDate,
-                    item.EndDate))
+                    item.EndDate
+                    )
+                {
+                    BeneficiaryDateOfBirth = item.Beneficiary.DateOfBirth,
+                }
+                )
             .ToListAsync(cancellationToken);
     }
 

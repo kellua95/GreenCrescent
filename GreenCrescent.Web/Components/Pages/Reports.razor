@@ -387,11 +387,13 @@
                                         المكفول @SortIndicator("BeneficiaryName")
                                     </button>
                                 </th>
+                                <th>العمر الحالي</th>
                                 <th>
                                     <button class="sort-button" @onclick='() => SortBy("SponsorName")'>
                                         الكافل @SortIndicator("SponsorName")
                                     </button>
                                 </th>
+                                
                                 <th>هاتف الكافل</th>
                                 <th>
                                     <button class="sort-button" @onclick='() => SortBy("ResponsibleSheikhName")'>
@@ -421,6 +423,11 @@
                             <tr>
                                 <td>@item.FileNumber</td>
                                 <td><strong>@item.BeneficiaryName</strong></td>
+                                    <td>
+                                        @(item.BeneficiaryAge is int age
+                                            ? $"{age} سنة"
+                                            : "—")
+                                    </td>
                                 <td>@item.SponsorName</td>
                                 <td>@(item.SponsorPhoneNumber ?? "—")</td>
                                 <td>@item.ResponsibleSheikhName</td>
@@ -487,6 +494,7 @@
                                         اسم المكفول الحالي @SortIndicator("BeneficiaryName")
                                     </button>
                                 </th>
+                                <th>العمر الحالي</th>
                             <th>هاتف المكفول</th>
          
                             <th>المكفول السابق الأول</th>
@@ -529,6 +537,12 @@
                                 </td>
 
                                 <td><strong>@item.BeneficiaryName</strong></td>
+
+                                    <td>
+                                        @(item.BeneficiaryAge is int age
+                                            ? $"{age} سنة"
+                                            : "—")
+                                    </td>
 
                                 <td>
                                     @(item.BeneficiaryPhoneNumber ?? "—")

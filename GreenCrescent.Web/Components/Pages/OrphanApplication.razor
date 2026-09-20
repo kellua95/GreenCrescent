@@ -1,0 +1,753 @@
+﻿@page "/orphan-application"
+@rendermode InteractiveServer
+@attribute [AllowAnonymous]
+
+@using GreenCrescent.Application.Features.OrphanApplications
+@using GreenCrescent.Core.Enums
+@using Microsoft.AspNetCore.Authorization
+@inject IOrphanApplicationService OrphanApplicationService
+
+<PageTitle>طلب كفالة يتيم</PageTitle>
+
+<div class="application-page" dir="rtl">
+    <header class="application-header">
+        <img src="/favicon.png"
+             alt="شعار جمعية الهلال الأخضر" />
+
+        <div>
+            <span>جمعية الهلال الأخضر الخيرية</span>
+            <h1>استمارة طلب كفالة يتيم</h1>
+            <p>
+                يرجى تعبئة البيانات بدقة. تقديم الطلب لا يعني
+                الموافقة عليه، وسيخضع للدراسة من موظفي الجمعية.
+            </p>
+        </div>
+    </header>
+
+    @if (trackingCode is not null)
+    {
+        <section class="success-card">
+            <span class="success-icon">✓</span>
+
+            <h2>تم استلام الطلب بنجاح</h2>
+
+            <p>
+                احتفظ برقم التتبع التالي للاستعلام عن حالة الطلب:
+            </p>
+
+            <strong class="tracking-code">@trackingCode</strong>
+
+            @if (wasAutomaticallyRejected)
+            {
+                <div class="automatic-rejection">
+                    لم يحقق الطلب شرط العمر؛ لأن اليتيم بلغ
+                    الخامسة عشرة من عمره. تم حفظ الطلب في الأرشيف
+                    لمراجعته عند الحاجة.
+                </div>
+            }
+
+            <button type="button"
+                    class="secondary-button"
+                    @onclick="StartNewApplication">
+                تقديم طلب جديد
+            </button>
+        </section>
+    }
+    else
+    {
+        @if (errorMessage is not null)
+        {
+            <div class="alert error-alert">
+                @errorMessage
+            </div>
+        }
+
+        <EditForm Model="form"
+                  OnSubmit="SubmitAsync"
+                  FormName="orphan-application-form">
+
+            <section class="form-card">
+                <div class="section-heading">
+                    <span>1</span>
+                    <div>
+                        <h2>بيانات مقدم الطلب</h2>
+                        <p>بيانات الشخص الذي يقوم بتعبئة الاستمارة.</p>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>اسم مقدم الطلب <b>*</b></label>
+                        <input @bind="form.ApplicantName"
+                               maxlength="200" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>رقم الهاتف <b>*</b></label>
+                        <input @bind="form.ApplicantPhoneNumber"
+                               maxlength="30"
+                               inputmode="tel" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>صلة مقدم الطلب باليتيم</label>
+                        <input @bind="form.ApplicantRelationship"
+                               maxlength="100" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card">
+                <div class="section-heading">
+                    <span>2</span>
+                    <div>
+                        <h2>بيانات اليتيم</h2>
+                        <p>المعلومات الشخصية والرسمية لليتيم.</p>
+                    </div>
+                </div>
+
+                <div class="form-grid four-columns">
+                    <div class="form-field">
+                        <label>الاسم الأول <b>*</b></label>
+                        <input @bind="form.OrphanFirstName"
+                               maxlength="100" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>اسم الأب <b>*</b></label>
+                        <input @bind="form.OrphanFatherName"
+                               maxlength="100" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>اسم الجد</label>
+                        <input @bind="form.OrphanGrandfatherName"
+                               maxlength="100" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>اسم العائلة <b>*</b></label>
+                        <input @bind="form.OrphanFamilyName"
+                               maxlength="100" />
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>الرقم الوطني <b>*</b></label>
+                        <input @bind="form.OrphanNationalNumber"
+                               maxlength="30" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>تاريخ الميلاد <b>*</b></label>
+                        <InputDate @bind-Value="form.DateOfBirth" />
+                        <small>
+                            يتم رفض الطلب تلقائيًا إذا بلغ اليتيم
+                            15 سنة.
+                        </small>
+                    </div>
+
+                    <div class="form-field">
+                        <label>الجنس <b>*</b></label>
+                        <InputSelect @bind-Value="form.Gender">
+                            <option value="@PersonGender.Male">ذكر</option>
+                            <option value="@PersonGender.Female">أنثى</option>
+                        </InputSelect>
+                    </div>
+
+                    <div class="form-field">
+                        <label>الجنسية <b>*</b></label>
+                        <input @bind="form.Nationality"
+                               maxlength="100" />
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>العنوان <b>*</b></label>
+                        <input @bind="form.Address"
+                               maxlength="500" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>رقم هاتف اليتيم إن وجد</label>
+                        <input @bind="form.PhoneNumber"
+                               maxlength="30"
+                               inputmode="tel" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card">
+                <div class="section-heading">
+                    <span>3</span>
+                    <div>
+                        <h2>بيانات الأب المتوفى</h2>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>تاريخ الوفاة <b>*</b></label>
+                        <InputDate @bind-Value="form.FatherDeathDate" />
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>سبب الوفاة <b>*</b></label>
+                        <input @bind="form.FatherDeathReason"
+                               maxlength="500" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card">
+                <div class="section-heading">
+                    <span>4</span>
+                    <div>
+                        <h2>بيانات الأم</h2>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>اسم الأم <b>*</b></label>
+                        <input @bind="form.MotherName"
+                               maxlength="200" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>الرقم الوطني</label>
+                        <input @bind="form.MotherNationalNumber"
+                               maxlength="30" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>تاريخ الميلاد</label>
+                        <InputDate @bind-Value="form.MotherDateOfBirth" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>الجنسية</label>
+                        <input @bind="form.MotherNationality"
+                               maxlength="100" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>رقم الهاتف</label>
+                        <input @bind="form.MotherPhoneNumber"
+                               maxlength="30"
+                               inputmode="tel" />
+                    </div>
+
+                    <label class="check-field">
+                        <InputCheckbox @bind-Value="form.IsMotherAlive" />
+                        <span>الأم على قيد الحياة</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="form-card">
+                <div class="section-heading">
+                    <span>5</span>
+                    <div>
+                        <h2>بيانات المعيل أو الوصي</h2>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>اسم المعيل <b>*</b></label>
+                        <input @bind="form.GuardianName"
+                               maxlength="200" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>الرقم الوطني <b>*</b></label>
+                        <input @bind="form.GuardianNationalNumber"
+                               maxlength="30" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>رقم الهاتف <b>*</b></label>
+                        <input @bind="form.GuardianPhoneNumber"
+                               maxlength="30"
+                               inputmode="tel" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>صلة القرابة</label>
+                        <input @bind="form.GuardianRelationship"
+                               maxlength="100" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>تاريخ الميلاد</label>
+                        <InputDate @bind-Value="form.GuardianDateOfBirth" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>الجنسية</label>
+                        <input @bind="form.GuardianNationality"
+                               maxlength="100" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>الجنس</label>
+                        <InputSelect @bind-Value="form.GuardianGender">
+                            <option value="">غير محدد</option>
+                            <option value="@PersonGender.Male">ذكر</option>
+                            <option value="@PersonGender.Female">أنثى</option>
+                        </InputSelect>
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card">
+                <div class="section-heading">
+                    <span>6</span>
+                    <div>
+                        <h2>الوضع الصحي والتعليمي</h2>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <label class="check-field">
+                        <InputCheckbox @bind-Value="form.HasIllness" />
+                        <span>يوجد مرض أو حالة صحية</span>
+                    </label>
+
+                    @if (form.HasIllness)
+                    {
+                        <div class="form-field full-width">
+                            <label>تفاصيل الحالة الصحية</label>
+                            <textarea @bind="form.IllnessDescription"
+                                      maxlength="1000"></textarea>
+                        </div>
+                    }
+
+                    <label class="check-field">
+                        <InputCheckbox @bind-Value="form.HasHealthInsurance" />
+                        <span>يوجد تأمين صحي</span>
+                    </label>
+
+                    @if (form.HasHealthInsurance)
+                    {
+                        <div class="form-field">
+                            <label>جهة التأمين</label>
+                            <input @bind="form.HealthInsuranceProvider"
+                                   maxlength="200" />
+                        </div>
+                    }
+
+                    <div class="form-field">
+                        <label>المرحلة الدراسية</label>
+                        <input @bind="form.EducationStage"
+                               maxlength="200" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>التحصيل الدراسي</label>
+                        <input @bind="form.AcademicAchievement"
+                               maxlength="200" />
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>سبب ترك المدرسة إن وجد</label>
+                        <textarea @bind="form.SchoolDropoutReason"
+                                  maxlength="1000"></textarea>
+                    </div>
+
+                    <div class="form-field full-width">
+                        <label>التوجه البديل إن وجد</label>
+                        <input @bind="form.AlternativeDirection"
+                               maxlength="500" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="form-card">
+                <div class="section-heading">
+                    <span>7</span>
+                    <div>
+                        <h2>الوضع المالي والأسري</h2>
+                    </div>
+                </div>
+
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label>عدد أفراد الأسرة <b>*</b></label>
+                        <InputNumber @bind-Value="form.FamilyMembersCount"
+                                     min="1" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>عدد المكفولين منهم</label>
+                        <InputNumber @bind-Value="form.SponsoredFamilyMembersCount"
+                                     min="0" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>إجمالي الدخل الشهري</label>
+                        <InputNumber @bind-Value="form.TotalMonthlyIncome"
+                                     min="0"
+                                     step="0.001" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>إجمالي المصروفات الشهرية</label>
+                        <InputNumber @bind-Value="form.TotalMonthlyExpenses"
+                                     min="0"
+                                     step="0.001" />
+                    </div>
+                </div>
+
+                <div class="family-heading">
+                    <div>
+                        <h3>أفراد الأسرة</h3>
+                        <p>أضف بيانات أفراد الأسرة المتوفرة.</p>
+                    </div>
+
+                    <button type="button"
+                            class="add-button"
+                            @onclick="AddFamilyMember">
+                        + إضافة فرد
+                    </button>
+                </div>
+
+                @if (familyMembers.Count == 0)
+                {
+                    <div class="empty-family">
+                        لم تتم إضافة أفراد أسرة.
+                    </div>
+                }
+
+                @for (var index = 0;
+                      index < familyMembers.Count;
+                      index++)
+                {
+                    var member = familyMembers[index];
+                    var memberIndex = index;
+
+                    <div class="family-member-card">
+                        <div class="family-member-header">
+                            <strong>فرد الأسرة @(index + 1)</strong>
+
+                            <button type="button"
+                                    class="remove-button"
+                                    @onclick="() => RemoveFamilyMember(memberIndex)">
+                                حذف
+                            </button>
+                        </div>
+
+                        <div class="form-grid">
+                            <div class="form-field">
+                                <label>الاسم <b>*</b></label>
+                                <input @bind="member.Name"
+                                       maxlength="200" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>تاريخ الميلاد</label>
+                                <InputDate @bind-Value="member.DateOfBirth" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>الجنس</label>
+                                <InputSelect @bind-Value="member.Gender">
+                                    <option value="">غير محدد</option>
+                                    <option value="@PersonGender.Male">ذكر</option>
+                                    <option value="@PersonGender.Female">أنثى</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="form-field">
+                                <label>صلة القرابة</label>
+                                <input @bind="member.Relationship"
+                                       maxlength="100" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>الحالة التعليمية</label>
+                                <input @bind="member.EducationalStatus"
+                                       maxlength="200" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>الحالة الاجتماعية</label>
+                                <input @bind="member.SocialStatus"
+                                       maxlength="200" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>الحالة الصحية</label>
+                                <input @bind="member.HealthStatus"
+                                       maxlength="500" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>المهنة</label>
+                                <input @bind="member.Occupation"
+                                       maxlength="200" />
+                            </div>
+
+                            <div class="form-field">
+                                <label>الدخل الشهري</label>
+                                <InputNumber @bind-Value="member.MonthlyIncome"
+                                             min="0"
+                                             step="0.001" />
+                            </div>
+                        </div>
+                    </div>
+                }
+            </section>
+
+            <section class="form-card">
+                <div class="section-heading">
+                    <span>8</span>
+                    <div>
+                        <h2>ملاحظات إضافية</h2>
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <textarea @bind="form.Notes"
+                              maxlength="2000"
+                              placeholder="أي معلومات أخرى تساعد الجمعية في دراسة الطلب...">
+                    </textarea>
+                </div>
+            </section>
+
+            <div class="submit-area">
+                <p>
+                    بالضغط على إرسال، أقر بأن البيانات المدخلة
+                    صحيحة حسب علمي.
+                </p>
+
+                <button type="submit"
+                        class="submit-button"
+                        disabled="@isSubmitting">
+                    @(isSubmitting
+                        ? "جاري إرسال الطلب..."
+                        : "إرسال طلب الكفالة")
+                </button>
+            </div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private SubmitOrphanApplicationRequest form = CreateForm();
+    private readonly List<FamilyMemberForm> familyMembers = [];
+
+    private bool isSubmitting;
+    private bool wasAutomaticallyRejected;
+    private string? trackingCode;
+    private string? errorMessage;
+
+    private async Task SubmitAsync()
+    {
+        if (isSubmitting)
+        {
+            return;
+        }
+
+        errorMessage = ValidateForm();
+
+        if (errorMessage is not null)
+        {
+            return;
+        }
+
+        isSubmitting = true;
+
+        try
+        {
+            form.FamilyMembers = familyMembers
+                .Where(item =>
+                    !string.IsNullOrWhiteSpace(item.Name))
+                .Select(item =>
+                    new SubmitFamilyMemberRequest(
+                        item.Name.Trim(),
+                        item.DateOfBirth,
+                        item.Gender,
+                        Normalize(item.Relationship),
+                        Normalize(item.EducationalStatus),
+                        Normalize(item.SocialStatus),
+                        Normalize(item.HealthStatus),
+                        Normalize(item.Occupation),
+                        item.MonthlyIncome))
+                .ToList();
+
+            var result =
+                await OrphanApplicationService.SubmitAsync(form);
+
+            trackingCode = result.TrackingCode;
+            wasAutomaticallyRejected =
+                result.WasAutomaticallyRejected;
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private string? ValidateForm()
+    {
+        if (string.IsNullOrWhiteSpace(form.ApplicantName))
+        {
+            return "اسم مقدم الطلب مطلوب.";
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                form.ApplicantPhoneNumber))
+        {
+            return "رقم هاتف مقدم الطلب مطلوب.";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.OrphanFirstName) ||
+            string.IsNullOrWhiteSpace(form.OrphanFatherName) ||
+            string.IsNullOrWhiteSpace(form.OrphanFamilyName))
+        {
+            return "يرجى إدخال اسم اليتيم بشكل كامل.";
+        }
+
+        if (string.IsNullOrWhiteSpace(
+                form.OrphanNationalNumber))
+        {
+            return "الرقم الوطني لليتيم مطلوب.";
+        }
+
+        if (form.DateOfBirth == default)
+        {
+            return "تاريخ ميلاد اليتيم مطلوب.";
+        }
+
+        if (form.DateOfBirth >
+            DateOnly.FromDateTime(DateTime.Today))
+        {
+            return "تاريخ ميلاد اليتيم لا يمكن أن يكون في المستقبل.";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.Nationality) ||
+            string.IsNullOrWhiteSpace(form.Address))
+        {
+            return "جنسية اليتيم وعنوانه مطلوبان.";
+        }
+
+        if (form.FatherDeathDate == default)
+        {
+            return "تاريخ وفاة الأب مطلوب.";
+        }
+
+      
+        if (string.IsNullOrWhiteSpace(
+                form.FatherDeathReason))
+        {
+            return "سبب وفاة الأب مطلوب.";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.MotherName))
+        {
+            return "اسم الأم مطلوب.";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.GuardianName) ||
+            string.IsNullOrWhiteSpace(
+                form.GuardianNationalNumber) ||
+            string.IsNullOrWhiteSpace(
+                form.GuardianPhoneNumber))
+        {
+            return "اسم المعيل ورقمه الوطني ورقم هاتفه مطلوبة.";
+        }
+
+        if (form.FamilyMembersCount < 1)
+        {
+            return "عدد أفراد الأسرة يجب أن يكون واحدًا على الأقل.";
+        }
+
+        if (form.SponsoredFamilyMembersCount < 0 ||
+            form.SponsoredFamilyMembersCount >
+            form.FamilyMembersCount)
+        {
+            return "عدد أفراد الأسرة المكفولين غير صحيح.";
+        }
+
+        if (form.TotalMonthlyIncome < 0 ||
+            form.TotalMonthlyExpenses < 0)
+        {
+            return "قيم الدخل والمصروفات لا يمكن أن تكون سالبة.";
+        }
+
+        if (form.HasIllness &&
+            string.IsNullOrWhiteSpace(
+                form.IllnessDescription))
+        {
+            return "يرجى توضيح الحالة الصحية.";
+        }
+
+        if (form.HasHealthInsurance &&
+            string.IsNullOrWhiteSpace(
+                form.HealthInsuranceProvider))
+        {
+            return "يرجى إدخال جهة التأمين الصحي.";
+        }
+
+        return null;
+    }
+
+    private void AddFamilyMember()
+    {
+        familyMembers.Add(new FamilyMemberForm());
+    }
+
+    private void RemoveFamilyMember(int index)
+    {
+        if (index >= 0 && index < familyMembers.Count)
+        {
+            familyMembers.RemoveAt(index);
+        }
+    }
+
+    private void StartNewApplication()
+    {
+        form = CreateForm();
+        familyMembers.Clear();
+        trackingCode = null;
+        errorMessage = null;
+        wasAutomaticallyRejected = false;
+    }
+
+    private static SubmitOrphanApplicationRequest CreateForm()
+    {
+        return new SubmitOrphanApplicationRequest
+        {
+            Nationality = "أردني",
+            IsMotherAlive = true,
+            FamilyMembersCount = 1,
+            Gender = PersonGender.Male
+        };
+    }
+
+    private static string? Normalize(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? null
+            : value.Trim();
+    }
+
+    private sealed class FamilyMemberForm
+    {
+        public string Name { get; set; } = string.Empty;
+        public DateOnly? DateOfBirth { get; set; }
+        public PersonGender? Gender { get; set; }
+        public string? Relationship { get; set; }
+        public string? EducationalStatus { get; set; }
+        public string? SocialStatus { get; set; }
+        public string? HealthStatus { get; set; }
+        public string? Occupation { get; set; }
+        public decimal MonthlyIncome { get; set; }
+    }
+}

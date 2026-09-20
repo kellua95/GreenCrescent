@@ -1,4 +1,5 @@
-﻿using GreenCrescent.Core.Enums;
+﻿using GreenCrescent.Application.Common.Helpers;
+using GreenCrescent.Core.Enums;
 
 namespace GreenCrescent.Application.Features.Reports;
 
@@ -18,4 +19,12 @@ public sealed record DetailedSponsorshipReportDto(
     DateOnly StartDate,
     DateOnly EndDate,
     SponsorshipStatus Status,
-    string? Notes);
+    string? Notes)
+{
+    public DateOnly? BeneficiaryDateOfBirth { get; init; }
+
+    public int? BeneficiaryAge =>
+        AgeCalculator.Calculate(
+            BeneficiaryDateOfBirth,
+            AgeCalculator.TodayInJordan());
+}

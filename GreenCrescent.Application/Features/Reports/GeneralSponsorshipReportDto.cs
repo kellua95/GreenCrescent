@@ -1,4 +1,6 @@
-﻿namespace GreenCrescent.Application.Features.Reports;
+﻿using GreenCrescent.Application.Common.Helpers;
+
+namespace GreenCrescent.Application.Features.Reports;
 
 public sealed record GeneralSponsorshipReportDto(
     int SponsorshipId,
@@ -9,4 +11,12 @@ public sealed record GeneralSponsorshipReportDto(
     string? SponsorPhoneNumber,
     decimal MonthlyAmount,
     DateOnly StartDate,
-    DateOnly EndDate);
+    DateOnly EndDate)
+{
+    public DateOnly? BeneficiaryDateOfBirth { get; init; }
+
+    public int? BeneficiaryAge =>
+        AgeCalculator.Calculate(
+            BeneficiaryDateOfBirth,
+            AgeCalculator.TodayInJordan());
+}

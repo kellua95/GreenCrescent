@@ -55,6 +55,16 @@
                             <span>إجراءات الكفالات</span>
                         </NavLink>
 
+                        <AuthorizeView Roles="Admin,Staff"
+                                       Context="orphanReviewAuthorization">
+                            <Authorized>
+                                <NavLink class="nav-link" href="orphan-applications">
+                                    <span class="nav-symbol">ط</span>
+                                    <span>طلبات الأيتام</span>
+                                </NavLink>
+                            </Authorized>
+                        </AuthorizeView>
+
                         <NavLink class="nav-link" href="responsible-sheikhs">
                             <span class="nav-symbol">ع</span>
                             <span>المعرّفون</span>
