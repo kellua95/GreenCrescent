@@ -105,127 +105,12 @@
         else if (mode is ReportMode.Beneficiaries or
          ReportMode.BeneficiaryArchive)
         {
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>
-                                <button class="sort-button"
-                                        @onclick='() => SortBy("Name")'>
-                                    اسم المكفول @SortIndicator("Name")
-                                </button>
-                            </th>
+            <div class="search-box">
+                <span>⌕</span>
 
-                            <th>الرقم الوطني للمكفول</th>
-                            <th>هاتف المكفول</th>
-
-                            <th>
-                                <button class="sort-button"
-                                        @onclick='() => SortBy("GuardianName")'>
-                                    اسم المعيل @SortIndicator("GuardianName")
-                                </button>
-                            </th>
-
-                            <th>الرقم الوطني للمعيل</th>
-                            <th>هاتف المعيل</th>
-
-                            <th>
-                                <button class="sort-button"
-                                        @onclick='() => SortBy("FamilyMembersCount")'>
-                                    عدد أفراد الأسرة
-                                    @SortIndicator("FamilyMembersCount")
-                                </button>
-                            </th>
-
-                            <th>
-                                <button class="sort-button"
-                                        @onclick='() => SortBy("TotalMonthlyIncome")'>
-                                    دخل الأسرة الشهري
-                                    @SortIndicator("TotalMonthlyIncome")
-                                </button>
-                            </th>
-
-                            <th>
-                                <button class="sort-button"
-                                        @onclick='() => SortBy("ActiveSponsorshipsCount")'>
-                                    كفالات المكفول
-                                    @SortIndicator("ActiveSponsorshipsCount")
-                                </button>
-                            </th>
-
-                            <th>
-                                <button class="sort-button"
-                                        @onclick='() => SortBy("FamilyActiveSponsorshipsCount")'>
-                                    كفالات العائلة
-                                    @SortIndicator("FamilyActiveSponsorshipsCount")
-                                </button>
-                            </th>
-
-                            <th>
-                                <button class="sort-button"
-                                        @onclick='() => SortBy("Status")'>
-                                    الحالة @SortIndicator("Status")
-                                </button>
-                            </th>
-
-                            @if (mode == ReportMode.BeneficiaryArchive)
-                            {
-                                <th>سبب الأرشفة</th>
-                            }
-                        </tr>
-                    </thead>
-
-                    <tbody>
-                        @foreach (var item in PagedBeneficiaryRows)
-                        {
-                            <tr @key="item.Id">
-                                <td><strong>@item.Name</strong></td>
-                                <td>@DisplayReportText(item.NationalNumber)</td>
-                                <td>@DisplayReportText(item.PhoneNumber)</td>
-
-                                <td>@DisplayReportText(item.GuardianName)</td>
-                                <td>@DisplayReportText(item.GuardianNationalNumber)</td>
-                                <td>@DisplayReportText(item.GuardianPhoneNumber)</td>
-
-                                <td>
-                                    @(item.FamilyMembersCount?.ToString() ?? "—")
-                                </td>
-
-                                <td>
-                                    @(item.TotalMonthlyIncome.HasValue
-                                        ? $"{item.TotalMonthlyIncome.Value:0.000} د.أ"
-                                        : "—")
-                                </td>
-
-                                <td>
-                                    <span class="count-badge">
-                                        @item.ActiveSponsorshipsCount
-                                    </span>
-                                </td>
-
-                                <td>
-                                    <span class="count-badge">
-                                        @(item.FamilyActiveSponsorshipsCount?.ToString() ?? "—")
-                                    </span>
-                                </td>
-
-                                <td>
-                                    @GetBeneficiaryStatus(item.Status)
-
-                                    @if (item.IsArchived)
-                                    {
-                                        <span> — مؤرشف</span>
-                                    }
-                                </td>
-
-                                @if (mode == ReportMode.BeneficiaryArchive)
-                                {
-                                    <td>@DisplayReportText(item.ArchiveReason)</td>
-                                }
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+                <input value="@searchTerm"
+                       @oninput="SearchChanged"
+                       placeholder="اسم المكفول أو الهاتف أو رقم الملف..." />
             </div>
         }
         else if (mode is ReportMode.General or ReportMode.Detailed)
@@ -402,84 +287,117 @@
                             <tr>
                                 <th>
                                     <button class="sort-button"
-                                            @onclick='() => SortBy("FileNumber")'>
-                                        رقم الملف @SortIndicator("FileNumber")
-                                    </button>
-                                </th>
-
-                                <th>
-                                    <button class="sort-button"
                                             @onclick='() => SortBy("Name")'>
                                         اسم المكفول @SortIndicator("Name")
                                     </button>
                                 </th>
 
-                                <th>رقم الهاتف</th>
-                                <th>تاريخ الميلاد</th>
+                                <th>الرقم الوطني للمكفول</th>
+                                <th>هاتف المكفول</th>
 
-                                @if (mode == ReportMode.Beneficiaries)
-                                {
-                                    <th>
-                                        <button class="sort-button"
-                                                @onclick='() => SortBy("ActiveSponsorshipsCount")'>
-                                            الكفالات الفعالة
-                                            @SortIndicator("ActiveSponsorshipsCount")
-                                        </button>
-                                    </th>
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("GuardianName")'>
+                                        اسم المعيل @SortIndicator("GuardianName")
+                                    </button>
+                                </th>
 
-                                    <th>الكافل</th>
-                                    <th>الحالة</th>
-                                }
-                                else
+                                <th>الرقم الوطني للمعيل</th>
+                                <th>هاتف المعيل</th>
+
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("FamilyMembersCount")'>
+                                        عدد أفراد الأسرة
+                                        @SortIndicator("FamilyMembersCount")
+                                    </button>
+                                </th>
+
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("TotalMonthlyIncome")'>
+                                        دخل الأسرة الشهري
+                                        @SortIndicator("TotalMonthlyIncome")
+                                    </button>
+                                </th>
+
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("ActiveSponsorshipsCount")'>
+                                        كفالات المكفول
+                                        @SortIndicator("ActiveSponsorshipsCount")
+                                    </button>
+                                </th>
+
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("FamilyActiveSponsorshipsCount")'>
+                                        كفالات العائلة
+                                        @SortIndicator("FamilyActiveSponsorshipsCount")
+                                    </button>
+                                </th>
+
+                                <th>
+                                    <button class="sort-button"
+                                            @onclick='() => SortBy("Status")'>
+                                        الحالة @SortIndicator("Status")
+                                    </button>
+                                </th>
+
+                                @if (mode == ReportMode.BeneficiaryArchive)
                                 {
                                     <th>سبب الأرشفة</th>
                                 }
-
-                                <th>ملاحظات</th>
                             </tr>
                         </thead>
 
                         <tbody>
                             @foreach (var item in PagedBeneficiaryRows)
                             {
-                                <tr>
+                                <tr @key="item.Id">
+                                    <td><strong>@item.Name</strong></td>
+                                    <td>@DisplayReportText(item.NationalNumber)</td>
+                                    <td>@DisplayReportText(item.PhoneNumber)</td>
+
+                                    <td>@DisplayReportText(item.GuardianName)</td>
+                                    <td>@DisplayReportText(item.GuardianNationalNumber)</td>
+                                    <td>@DisplayReportText(item.GuardianPhoneNumber)</td>
+
+                                    <td>
+                                        @(item.FamilyMembersCount?.ToString() ?? "—")
+                                    </td>
+
+                                    <td>
+                                        @(item.TotalMonthlyIncome.HasValue
+                                            ? $"{item.TotalMonthlyIncome.Value:0.000} د.أ"
+                                            : "—")
+                                    </td>
+
                                     <td>
                                         <span class="count-badge">
-                                            @item.FileNumber
+                                            @item.ActiveSponsorshipsCount
                                         </span>
                                     </td>
 
-                                    <td><strong>@item.Name</strong></td>
-                                    <td>@(item.PhoneNumber ?? "—")</td>
-
                                     <td>
-                                        @(item.DateOfBirth?.ToString("yyyy/MM/dd") ?? "—")
+                                        <span class="count-badge">
+                                            @(item.FamilyActiveSponsorshipsCount?.ToString() ?? "—")
+                                        </span>
                                     </td>
 
-                                    @if (mode == ReportMode.Beneficiaries)
+                                    <td>
+                                        @GetBeneficiaryStatus(item.Status)
+
+                                        @if (item.IsArchived)
+                                        {
+                                            <span> — مؤرشف</span>
+                                        }
+                                    </td>
+
+                                    @if (mode == ReportMode.BeneficiaryArchive)
                                     {
-                                        <td>
-                                            <span class="count-badge">
-                                                @item.ActiveSponsorshipsCount
-                                            </span>
-                                        </td>
-
-                                        <td>
-                                            @(item.ActiveSponsorName ?? "—")
-                                        </td>
-
-                                        <td>
-                                            @GetBeneficiaryStatus(item.Status)
-                                        </td>
+                                        <td>@DisplayReportText(item.ArchiveReason)</td>
                                     }
-                                    else
-                                    {
-                                        <td>
-                                            @(item.ArchiveReason ?? "—")
-                                        </td>
-                                    }
-
-                                    <td>@(item.Notes ?? "—")</td>
                                 </tr>
                             }
                         </tbody>
