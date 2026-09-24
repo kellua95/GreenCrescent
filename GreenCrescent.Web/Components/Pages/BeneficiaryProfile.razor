@@ -1,0 +1,837 @@
+﻿@page "/beneficiaries/new"
+@page "/beneficiaries/{Id:int}"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Staff")]
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.JSInterop
+@using GreenCrescent.Application.Features.Beneficiaries
+@using GreenCrescent.Core.Enums
+
+@inject IBeneficiaryService BeneficiaryService
+@inject IJSRuntime JS
+@inject ILogger<BeneficiaryProfile> Logger
+
+<PageTitle>@PageHeading</PageTitle>
+
+<div class="profile-page" dir="rtl">
+    <header class="profile-header">
+        <div>
+            <span>إدارة المكفولين</span>
+            <h1>@PageHeading</h1>
+        </div>
+
+        @if (!isBusy && !photoLoading)
+        {
+            <a class="profile-button secondary" href="beneficiaries">
+                العودة إلى المكفولين
+            </a>
+        }
+    </header>
+
+    @if (successMessage is not null)
+    {
+        <div class="notice success" role="status">@successMessage</div>
+    }
+
+    @if (errorMessage is not null)
+    {
+        <div class="notice error" role="alert">@errorMessage</div>
+    }
+
+    @if (isLoading)
+    {
+        <div class="profile-card">جاري تحميل البيانات...</div>
+    }
+    else if (!isEditing && saved is null)
+    {
+        <div class="profile-card">
+            <p>تعذر عرض بيانات المكفول.</p>
+
+            @if (persistedId.HasValue)
+            {
+                <button type="button"
+                        class="profile-button secondary"
+                        disabled="@isBusy"
+                        @onclick="ReloadAsync">
+                    إعادة تحميل البيانات
+                </button>
+            }
+        </div>
+    }
+    else if (!isEditing && saved is not null)
+    {
+        <section class="profile-card">
+            <div class="record-toolbar">
+                <div>
+                    <h2>@saved.Name</h2>
+                    <p>رقم الملف: @saved.FileNumber</p>
+                </div>
+
+                <div class="button-row">
+                    <button type="button"
+                            class="profile-button primary"
+                            disabled="@isBusy"
+                            @onclick="BeginEdit">
+                        تعديل
+                    </button>
+
+                    <button type="button"
+                            class="profile-button secondary"
+                            disabled="@isBusy"
+                            @onclick="PrintAsync">
+                        طباعة
+                    </button>
+                </div>
+            </div>
+
+            @SavedDetails()
+        </section>
+    }
+    else
+    {
+        <EditForm EditContext="@editContext"
+                  OnSubmit="SaveWithoutPrintAsync"
+                  FormName="beneficiary-profile">
+
+            <DataAnnotationsValidator />
+            <ValidationSummary class="validation-errors" />
+
+            <fieldset disabled="@(isBusy || photoLoading)"
+                      class="editor-fieldset">
+
+                <section class="profile-card">
+                    <h2>بيانات المكفول</h2>
+
+                    <div class="field-grid">
+                        <div class="field">
+                            <label for="file-number">رقم الملف *</label>
+                            <InputNumber id="file-number"
+                                         @bind-Value="form.FileNumber"
+                                         min="1" />
+                            <ValidationMessage For="() => form.FileNumber" />
+                        </div>
+
+                        <div class="field wide">
+                            <label for="beneficiary-name">اسم المكفول الكامل *</label>
+                            <InputText id="beneficiary-name"
+                                       @bind-Value="form.Name"
+                                       maxlength="200" />
+                            <ValidationMessage For="() => form.Name" />
+                        </div>
+
+                        <div class="field">
+                            <label for="national-number">الرقم الوطني</label>
+                            <InputText id="national-number"
+                                       @bind-Value="form.AdditionalData.NationalNumber"
+                                       maxlength="30" />
+                        </div>
+
+                        <div class="field">
+                            <label for="birth-date">تاريخ الميلاد</label>
+                            <InputDate id="birth-date"
+                                       @bind-Value="form.DateOfBirth" />
+                        </div>
+
+                        <div class="field">
+                            <label for="phone">رقم الهاتف</label>
+                            <InputText id="phone"
+                                       @bind-Value="form.PhoneNumber"
+                                       type="tel"
+                                       maxlength="30" />
+                        </div>
+
+                        <div class="field">
+                            <label for="gender">الجنس</label>
+                            <InputSelect id="gender"
+                                         @bind-Value="form.AdditionalData.Gender">
+                                <option value="">غير محدد</option>
+                                <option value="@PersonGender.Male">ذكر</option>
+                                <option value="@PersonGender.Female">أنثى</option>
+                            </InputSelect>
+                        </div>
+
+                        <div class="field">
+                            <label for="nationality">الجنسية</label>
+                            <InputText id="nationality"
+                                       @bind-Value="form.AdditionalData.Nationality"
+                                       maxlength="100" />
+                        </div>
+
+                        <div class="field full">
+                            <label for="address">العنوان</label>
+                            <InputText id="address"
+                                       @bind-Value="form.AdditionalData.Address"
+                                       maxlength="500" />
+                        </div>
+                    </div>
+                </section>
+
+                <section class="profile-card">
+                    <h2>صورة المكفول</h2>
+
+                    <InputFile @key="photoInputKey"
+                               OnChange="PhotoChangedAsync"
+                               accept="image/jpeg,image/png" />
+
+                    <p class="hint">اختيارية — JPG أو PNG حتى 500 كيلوبايت.</p>
+
+                    @if (photoError is not null)
+                    {
+                        <p class="validation-errors" role="alert">@photoError</p>
+                    }
+
+                    @if (photoPreview is not null)
+                    {
+                        <div class="photo-preview">
+                            <img src="@photoPreview" alt="صورة المكفول" />
+
+                            <button type="button"
+                                    class="profile-button danger"
+                                    @onclick="RemovePhoto">
+                                إزالة الصورة
+                            </button>
+                        </div>
+                    }
+                </section>
+
+                <section class="profile-card">
+                    <h2>بيانات المعيل والأسرة</h2>
+
+                    <div class="field-grid">
+                        <div class="field full">
+                            <label for="guardian-name">الاسم الرباعي للمعيل</label>
+                            <InputText id="guardian-name"
+                                       @bind-Value="form.AdditionalData.GuardianName"
+                                       maxlength="200" />
+                        </div>
+
+                        <div class="field">
+                            <label for="guardian-number">الرقم الوطني للمعيل</label>
+                            <InputText id="guardian-number"
+                                       @bind-Value="form.AdditionalData.GuardianNationalNumber"
+                                       maxlength="30" />
+                        </div>
+
+                        <div class="field">
+                            <label for="guardian-phone">هاتف المعيل</label>
+                            <InputText id="guardian-phone"
+                                       @bind-Value="form.AdditionalData.GuardianPhoneNumber"
+                                       type="tel"
+                                       maxlength="30" />
+                        </div>
+
+                        <div class="field">
+                            <label for="relationship">صلة القرابة</label>
+                            <InputText id="relationship"
+                                       @bind-Value="form.AdditionalData.GuardianRelationship"
+                                       maxlength="100" />
+                        </div>
+
+                        <div class="field">
+                            <label for="family-count">عدد أفراد الأسرة</label>
+                            <InputNumber id="family-count"
+                                         @bind-Value="form.AdditionalData.FamilyMembersCount"
+                                         min="1" />
+                        </div>
+
+                        <div class="field">
+                            <label for="family-income">دخل الأسرة الشهري — د.أ</label>
+                            <InputNumber id="family-income"
+                                         @bind-Value="form.AdditionalData.TotalMonthlyIncome"
+                                         min="0"
+                                         step="0.001" />
+                            <small>اتركه فارغًا إذا لم يكن معروفًا.</small>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="profile-card">
+                    <h2>بيانات الأب والملاحظات</h2>
+
+                    <div class="field-grid">
+                        <div class="field">
+                            <label for="death-date">تاريخ وفاة الأب</label>
+                            <InputDate id="death-date"
+                                       @bind-Value="form.AdditionalData.FatherDeathDate" />
+                        </div>
+
+                        <div class="field wide">
+                            <label for="death-reason">سبب الوفاة</label>
+                            <InputText id="death-reason"
+                                       @bind-Value="form.AdditionalData.FatherDeathReason"
+                                       maxlength="500" />
+                        </div>
+
+                        <div class="field full">
+                            <label for="notes">ملاحظات</label>
+                            <InputTextArea id="notes"
+                                           @bind-Value="form.Notes"
+                                           maxlength="1000" />
+                        </div>
+                    </div>
+                </section>
+
+                <div class="profile-card button-row">
+                    <button type="button"
+                            class="profile-button primary"
+                            @onclick="SaveAndPrintAsync">
+                        حفظ وطباعة
+                    </button>
+
+                    <button type="submit"
+                            class="profile-button secondary">
+                        حفظ بدون طباعة
+                    </button>
+
+                    @if (saved is not null)
+                    {
+                        <button type="button"
+                                class="profile-button secondary"
+                                @onclick="CancelEdit">
+                            إلغاء التعديل
+                        </button>
+                    }
+                    else
+                    {
+                        <a class="profile-button secondary"
+                           href="beneficiaries">
+                            إلغاء
+                        </a>
+                    }
+                </div>
+            </fieldset>
+        </EditForm>
+
+        @if (isBusy || photoLoading)
+        {
+            <p role="status">
+                @(photoLoading ? "جاري تحميل الصورة..." : "جاري الحفظ...")
+            </p>
+        }
+    }
+
+    @* نسخة للورق من البيانات المحفوظة فقط.
+       خاصية hidden على الحاوية الخارجية، وليست على القسم المنسوخ. *@
+    @if (saved is not null && !isEditing)
+    {
+        <div hidden>
+            <section id="beneficiary-print" dir="rtl">
+                <div class="print-heading">
+                    <img src="favicon.png" alt="شعار الجمعية" />
+
+                    <div>
+                        <h2>جمعية الهلال الأخضر الخيرية</h2>
+                        <p>فرع إربد</p>
+                        <h3>ملف مكفول</h3>
+                    </div>
+
+                    <div class="print-reference">
+                        <p>الرقم: ........................</p>
+                        <p>رقم الملف: @saved.FileNumber</p>
+                    </div>
+                </div>
+
+                @SavedDetails()
+
+                <div class="print-signatures">
+                    <div>
+                        <strong>الموظف المختص</strong>
+                        <p>................................</p>
+                    </div>
+                    <div>
+                        <strong>اعتماد الإدارة</strong>
+                        <p>................................</p>
+                    </div>
+                    <div>
+                        <strong>ختم الجمعية</strong>
+                        <p>................................</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private BeneficiaryDto? saved;
+    private BeneficiaryEditorModel form = new();
+    private EditContext editContext = default!;
+
+    private int? persistedId;
+    private bool isLoading;
+    private bool isEditing;
+    private bool isBusy;
+    private bool photoLoading;
+    private bool printAfterRender;
+
+    private bool changePhoto;
+    private byte[]? replacementPhoto;
+    private string? replacementPhotoType;
+    private string? photoPreview;
+    private string? photoError;
+    private int photoInputKey;
+
+    private string? errorMessage;
+    private string? successMessage;
+
+    private string PageHeading =>
+        isEditing
+            ? persistedId.HasValue ? "تعديل بيانات المكفول" : "إضافة مكفول"
+            : "ملف المكفول";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        persistedId = Id;
+        saved = null;
+        errorMessage = null;
+        successMessage = null;
+        printAfterRender = false;
+
+        if (Id.HasValue)
+        {
+            isEditing = false;
+            await ReloadAsync();
+        }
+        else
+        {
+            PrepareForm(null);
+            isEditing = true;
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (!persistedId.HasValue || isBusy)
+        {
+            return;
+        }
+
+        isBusy = true;
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            saved = await BeneficiaryService.GetByIdAsync(
+                persistedId.Value);
+
+            if (saved is null)
+            {
+                errorMessage = "المكفول المطلوب غير موجود.";
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Failed to load beneficiary");
+            errorMessage = "تعذر تحميل بيانات المكفول.";
+        }
+        finally
+        {
+            isBusy = false;
+            isLoading = false;
+        }
+    }
+
+    private void BeginEdit()
+    {
+        if (saved is null || isBusy)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        successMessage = null;
+
+        PrepareForm(saved);
+        isEditing = true;
+    }
+
+    private void CancelEdit()
+    {
+        if (isBusy || photoLoading)
+        {
+            return;
+        }
+
+        isEditing = false;
+        errorMessage = null;
+        photoError = null;
+    }
+
+    private void PrepareForm(BeneficiaryDto? item)
+    {
+        form = new BeneficiaryEditorModel
+        {
+            FileNumber = item?.FileNumber,
+            Name = item?.Name ?? string.Empty,
+            PhoneNumber = item?.PhoneNumber,
+            DateOfBirth = item?.DateOfBirth,
+            Notes = item?.Notes,
+
+            AdditionalData = new BeneficiaryAdditionalData
+            {
+                NationalNumber = item?.NationalNumber,
+                Gender = item?.Gender,
+                Nationality = item?.Nationality,
+                Address = item?.Address,
+                GuardianName = item?.GuardianName,
+                GuardianNationalNumber = item?.GuardianNationalNumber,
+                GuardianPhoneNumber = item?.GuardianPhoneNumber,
+                GuardianRelationship = item?.GuardianRelationship,
+                FatherDeathDate = item?.FatherDeathDate,
+                FatherDeathReason = item?.FatherDeathReason,
+                FamilyMembersCount = item?.FamilyMembersCount,
+                TotalMonthlyIncome = item?.TotalMonthlyIncome
+            }
+        };
+
+        editContext = new EditContext(form);
+
+        changePhoto = false;
+        replacementPhoto = null;
+        replacementPhotoType = null;
+        photoPreview = PhotoUrl(item);
+        photoError = null;
+        photoInputKey++;
+    }
+
+    private async Task PhotoChangedAsync(InputFileChangeEventArgs args)
+    {
+        if (isBusy || photoLoading)
+        {
+            return;
+        }
+
+        photoLoading = true;
+        photoError = null;
+
+        try
+        {
+            var file = args.File;
+            const int maximum = 500 * 1024;
+
+            if (file.Size <= 0 || file.Size > maximum)
+            {
+                photoError = "اختر صورة لا يتجاوز حجمها 500 كيلوبايت.";
+                return;
+            }
+
+            var type = file.ContentType.ToLowerInvariant();
+
+            if (type is not ("image/jpeg" or "image/png"))
+            {
+                photoError = "الصيغ المسموحة JPG وPNG فقط.";
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(maximum);
+            using var buffer = new MemoryStream();
+            await stream.CopyToAsync(buffer);
+
+            // لا نغير الصورة الحالية إلا بعد نجاح القراءة.
+            replacementPhoto = buffer.ToArray();
+            replacementPhotoType = type;
+            changePhoto = true;
+
+            photoPreview =
+                $"data:{type};base64,{Convert.ToBase64String(replacementPhoto)}";
+        }
+        catch (Exception exception)
+        {
+            Logger.LogWarning(exception, "Failed to read beneficiary photo");
+            photoError = "تعذر قراءة الصورة. اختر صورة أخرى.";
+        }
+        finally
+        {
+            photoLoading = false;
+        }
+    }
+
+    private void RemovePhoto()
+    {
+        changePhoto = true;
+        replacementPhoto = null;
+        replacementPhotoType = null;
+        photoPreview = null;
+        photoError = null;
+        photoInputKey++;
+    }
+
+    private Task SaveWithoutPrintAsync() => SaveAsync(false);
+
+    private Task SaveAndPrintAsync() => SaveAsync(true);
+
+    private async Task SaveAsync(bool shouldPrint)
+    {
+        if (isBusy || photoLoading || !isEditing)
+        {
+            return;
+        }
+
+        errorMessage = null;
+        successMessage = null;
+
+        if (!editContext.Validate())
+        {
+            errorMessage = "راجع الحقول المطلوبة أو القيم غير الصحيحة.";
+            return;
+        }
+
+        if (photoError is not null)
+        {
+            errorMessage = "صحح اختيار الصورة قبل الحفظ.";
+            return;
+        }
+
+        isBusy = true;
+        var saveCompleted = false;
+
+        try
+        {
+            if (persistedId.HasValue)
+            {
+                await BeneficiaryService.UpdateAsync(
+                    new UpdateBeneficiaryRequest(
+                        persistedId.Value,
+                        form.FileNumber!.Value,
+                        form.Name,
+                        form.PhoneNumber,
+                        form.DateOfBirth,
+                        form.Notes)
+                    {
+                        AdditionalData = form.AdditionalData,
+                        ChangePhoto = changePhoto,
+                        PhotoData = replacementPhoto,
+                        PhotoContentType = replacementPhotoType
+                    });
+            }
+            else
+            {
+                persistedId = await BeneficiaryService.CreateAsync(
+                    new CreateBeneficiaryRequest(
+                        form.FileNumber!.Value,
+                        form.Name,
+                        form.PhoneNumber,
+                        form.DateOfBirth,
+                        form.Notes)
+                    {
+                        AdditionalData = form.AdditionalData,
+                        PhotoData = replacementPhoto,
+                        PhotoContentType = replacementPhotoType
+                    });
+            }
+
+            saveCompleted = true;
+            isEditing = false;
+            saved = null;
+            successMessage = "تم حفظ بيانات المكفول بنجاح.";
+
+            saved = await BeneficiaryService.GetByIdAsync(
+                persistedId!.Value);
+
+            if (saved is null)
+            {
+                errorMessage =
+                    "تم الحفظ، لكن تعذر تحميل البيانات. استخدم إعادة التحميل.";
+                return;
+            }
+
+            // ننتظر ظهور نسخة الطباعة في DOM.
+            printAfterRender = shouldPrint;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Failed to save or reload beneficiary");
+
+            if (saveCompleted)
+            {
+                errorMessage =
+                    "تم الحفظ، لكن تعذر تحديث العرض. أعد تحميل البيانات دون إعادة الإضافة.";
+            }
+            else if (exception is InvalidOperationException)
+            {
+                errorMessage = exception.Message;
+            }
+            else
+            {
+                errorMessage =
+                    "تعذر تأكيد الحفظ. تحقق من سجل المكفولين قبل إعادة المحاولة.";
+            }
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!printAfterRender)
+        {
+            return;
+        }
+
+        printAfterRender = false;
+        await PrintAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PrintAsync()
+    {
+        if (saved is null || isEditing || isBusy)
+        {
+            return;
+        }
+
+        isBusy = true;
+
+        try
+        {
+            await using var module =
+                await JS.InvokeAsync<IJSObjectReference>(
+                    "import",
+                    "./js/orphan-print.js?v=2");
+
+            await module.InvokeVoidAsync(
+                "printApplication",
+                "#beneficiary-print",
+                "ملف مكفول");
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Failed to print beneficiary");
+
+            errorMessage =
+                "بيانات المكفول محفوظة، لكن تعذر فتح الطباعة. اضغط طباعة للمحاولة مجددًا.";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private RenderFragment SavedDetails() => @<div>
+        @if (saved is { } item)
+        {
+            @if (PhotoUrl(item) is string photo)
+            {
+                <div class="orphan-photo">
+                    <img src="@photo" alt="صورة المكفول" />
+                </div>
+            }
+
+            <h3>بيانات المكفول</h3>
+
+            <dl class="details-grid">
+                <div><dt>رقم الملف</dt><dd>@item.FileNumber</dd></div>
+                <div><dt>الاسم</dt><dd>@item.Name</dd></div>
+                <div><dt>الرقم الوطني</dt><dd>@Text(item.NationalNumber)</dd></div>
+                <div><dt>تاريخ الميلاد</dt><dd>@DateText(item.DateOfBirth)</dd></div>
+                <div><dt>الهاتف</dt><dd>@Text(item.PhoneNumber)</dd></div>
+                <div><dt>الجنس</dt><dd>@GenderText(item.Gender)</dd></div>
+                <div><dt>الجنسية</dt><dd>@Text(item.Nationality)</dd></div>
+                <div><dt>العنوان</dt><dd>@Text(item.Address)</dd></div>
+            </dl>
+
+            <h3>بيانات المعيل والأسرة</h3>
+
+            <dl class="details-grid">
+                <div><dt>الاسم الرباعي للمعيل</dt><dd>@Text(item.GuardianName)</dd></div>
+                <div><dt>الرقم الوطني للمعيل</dt><dd>@Text(item.GuardianNationalNumber)</dd></div>
+                <div><dt>هاتف المعيل</dt><dd>@Text(item.GuardianPhoneNumber)</dd></div>
+                <div><dt>صلة القرابة</dt><dd>@Text(item.GuardianRelationship)</dd></div>
+                <div><dt>عدد أفراد الأسرة</dt><dd>@(item.FamilyMembersCount?.ToString() ?? "—")</dd></div>
+                <div>
+                    <dt>دخل الأسرة الشهري</dt>
+                    <dd>
+                        @(item.TotalMonthlyIncome.HasValue
+                            ? $"{item.TotalMonthlyIncome.Value:0.000} د.أ"
+                            : "—")
+                    </dd>
+                </div>
+            </dl>
+
+            <h3>الحالة والكفالات</h3>
+
+            <dl class="details-grid">
+                <div><dt>الحالة</dt><dd>@StatusText(item.Status)</dd></div>
+                <div><dt>مؤرشف</dt><dd>@(item.IsArchived ? "نعم" : "لا")</dd></div>
+                <div><dt>كفالات المكفول الفعالة</dt><dd>@item.ActiveSponsorshipsCount</dd></div>
+                <div><dt>كفالات العائلة الفعالة</dt><dd>@(item.FamilyActiveSponsorshipsCount?.ToString() ?? "—")</dd></div>
+
+                @if (item.IsArchived)
+                {
+                    <div><dt>سبب الأرشفة</dt><dd>@Text(item.ArchiveReason)</dd></div>
+                }
+            </dl>
+
+            <h3>بيانات الأب والملاحظات</h3>
+
+            <dl class="details-grid">
+                <div><dt>تاريخ وفاة الأب</dt><dd>@DateText(item.FatherDeathDate)</dd></div>
+                <div><dt>سبب الوفاة</dt><dd>@Text(item.FatherDeathReason)</dd></div>
+                <div><dt>ملاحظات</dt><dd>@Text(item.Notes)</dd></div>
+            </dl>
+        }
+    </div>;
+
+    private static string? PhotoUrl(BeneficiaryDto? item)
+    {
+        if (item?.PhotoData is not { Length: > 0 } photo ||
+            item.PhotoContentType is not ("image/jpeg" or "image/png"))
+        {
+            return null;
+        }
+
+        return $"data:{item.PhotoContentType};base64,{Convert.ToBase64String(photo)}";
+    }
+
+    private static string Text(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
+
+    private static string DateText(DateOnly? date) =>
+        date?.ToString("yyyy/MM/dd") ?? "—";
+
+    private static string GenderText(PersonGender? gender) => gender switch
+    {
+        PersonGender.Male => "ذكر",
+        PersonGender.Female => "أنثى",
+        _ => "—"
+    };
+
+    private static string StatusText(BeneficiaryStatus status) => status switch
+    {
+        BeneficiaryStatus.WaitingForSponsor => "بانتظار كافل",
+        BeneficiaryStatus.Sponsored => "مكفول",
+        BeneficiaryStatus.NoLongerEligible => "غير مستحق",
+        BeneficiaryStatus.Suspended => "موقوف",
+        _ => status.ToString()
+    };
+
+    private sealed class BeneficiaryEditorModel
+    {
+        [Required(ErrorMessage = "رقم الملف مطلوب.")]
+        [Range(1, int.MaxValue, ErrorMessage = "رقم الملف يجب أن يكون أكبر من صفر.")]
+        public int? FileNumber { get; set; }
+
+        [Required(ErrorMessage = "اسم المكفول مطلوب.")]
+        [StringLength(200, ErrorMessage = "الاسم يجب ألا يتجاوز 200 حرف.")]
+        public string Name { get; set; } = string.Empty;
+
+        [StringLength(30, ErrorMessage = "الهاتف يجب ألا يتجاوز 30 حرفًا.")]
+        public string? PhoneNumber { get; set; }
+
+        public DateOnly? DateOfBirth { get; set; }
+
+        [StringLength(1000, ErrorMessage = "الملاحظات يجب ألا تتجاوز 1000 حرف.")]
+        public string? Notes { get; set; }
+
+        public BeneficiaryAdditionalData AdditionalData { get; set; } = new();
+    }
+}

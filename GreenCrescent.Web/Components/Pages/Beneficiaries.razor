@@ -18,9 +18,11 @@
             <p>إدارة بيانات المكفولين وحالات استحقاقهم للكفالة.</p>
         </div>
 
-        <button class="primary-button" @onclick="StartCreate">
+        <a class="primary-button"
+           style="text-decoration: none;"
+           href="beneficiaries/new">
             ＋ إضافة مكفول
-        </button>
+        </a>
     </header>
 
     @if (message is not null)
@@ -140,11 +142,11 @@
 
                                     <td>
                                         <div class="actions">
-                                            <button type="button"
-                                                    class="edit-button"
-                                                    @onclick="() => StartEdit(beneficiary)">
-                                                تعديل
-                                            </button>
+                                            <a class="edit-button"
+                                               style="text-decoration: none;"
+                                               href="@($"beneficiaries/{beneficiary.Id}")">
+                                                عرض
+                                            </a>
 
                                             @if (beneficiary.IsArchived)
                                             {

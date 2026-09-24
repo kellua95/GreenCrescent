@@ -1,5 +1,8 @@
-﻿export async function printApplication() {
-    const source = document.querySelector(".printable-application");
+﻿export async function printApplication(
+    selector = ".printable-application",
+    title = "طلب كفالة يتيم"
+) {
+    const source = document.querySelector(selector);
 
     if (!source) {
         throw new Error("لم يتم العثور على تفاصيل الطلب.");
@@ -222,6 +225,7 @@
 
         const printDocument = frame.contentDocument;
         const printWindow = frame.contentWindow;
+        printDocument.title = title;
 
         await Promise.all(
             Array.from(printDocument.images).map(img =>

@@ -1,0 +1,254 @@
+﻿.profile-page {
+    padding: 1.5rem;
+    background: #f5f8f6;
+    color: #20372a;
+    min-height: 100%;
+}
+
+.profile-header,
+.record-toolbar,
+.button-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    flex-wrap: wrap;
+}
+
+.profile-header {
+    margin-bottom: 1.25rem;
+}
+
+    .profile-header span {
+        color: #08783e;
+        font-weight: 700;
+    }
+
+    .profile-header h1 {
+        margin: .3rem 0;
+    }
+
+.profile-card {
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    background: white;
+    border: 1px solid #dce7df;
+    border-radius: 15px;
+}
+
+    .profile-card h2 {
+        margin-top: 0;
+        font-size: 1.25rem;
+    }
+
+    .profile-card h3 {
+        margin: 1.5rem 0 .8rem;
+        padding-bottom: .6rem;
+        color: #08783e;
+        border-bottom: 1px solid #e3ece6;
+        font-size: 1.05rem;
+    }
+
+.record-toolbar {
+    margin-bottom: 1rem;
+}
+
+    .record-toolbar p {
+        margin: 0;
+        color: #68786e;
+    }
+
+.button-row {
+    justify-content: flex-start;
+}
+
+.profile-button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 42px;
+    padding: .65rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.primary {
+    background: #08783e;
+    color: white;
+}
+
+    .primary:hover {
+        background: #056533;
+    }
+
+.secondary {
+    background: white;
+    color: #08783e;
+    border-color: #b4d2c1;
+}
+
+    .secondary:hover {
+        background: #edf8f1;
+    }
+
+.danger {
+    background: #fff1ef;
+    color: #a12b23;
+    border-color: #efc2bd;
+}
+
+button:disabled,
+.editor-fieldset:disabled {
+    opacity: .65;
+}
+
+.editor-fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.field-grid,
+.details-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.field {
+    min-width: 0;
+}
+
+    .field.wide {
+        grid-column: span 2;
+    }
+
+    .field.full {
+        grid-column: 1 / -1;
+    }
+
+    .field label {
+        display: block;
+        margin-bottom: .4rem;
+        font-weight: 700;
+    }
+
+    .field ::deep input,
+    .field ::deep select,
+    .field ::deep textarea {
+        box-sizing: border-box;
+        width: 100%;
+        min-height: 44px;
+        padding: .65rem .75rem;
+        color: #20372a;
+        background: white;
+        border: 1px solid #cbd8d0;
+        border-radius: 9px;
+        font: inherit;
+    }
+
+    .field ::deep textarea {
+        min-height: 110px;
+        resize: vertical;
+    }
+
+        .field ::deep input:focus,
+        .field ::deep select:focus,
+        .field ::deep textarea:focus {
+            outline: 2px solid #08783e;
+            outline-offset: 2px;
+        }
+
+    .field small,
+    .hint {
+        color: #68786e;
+        font-size: .82rem;
+    }
+
+.details-grid {
+    margin: 0;
+}
+
+    .details-grid > div {
+        min-width: 0;
+        padding: .8rem;
+        background: #f7faf8;
+        border-radius: 9px;
+    }
+
+dt {
+    margin-bottom: .4rem;
+    color: #68786e;
+    font-size: .85rem;
+}
+
+dd {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-weight: 600;
+}
+
+.photo-preview {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+    .photo-preview img,
+    .orphan-photo img {
+        width: 120px;
+        height: 150px;
+        object-fit: contain;
+        border: 1px solid #cbd8d0;
+        border-radius: 9px;
+    }
+
+.notice {
+    padding: .9rem 1rem;
+    margin-bottom: 1rem;
+    border-radius: 10px;
+}
+
+.success {
+    background: #e8f7ee;
+    color: #086534;
+}
+
+.error {
+    background: #fff0ef;
+    color: #9b241a;
+}
+
+.validation-errors,
+::deep .validation-message {
+    color: #a12b23;
+}
+
+@media (max-width: 900px) {
+    .field-grid,
+    .details-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .profile-page {
+        padding: .75rem;
+    }
+
+    .field-grid,
+    .details-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .field.wide,
+    .field.full {
+        grid-column: auto;
+    }
+}
