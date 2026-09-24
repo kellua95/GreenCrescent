@@ -3,6 +3,7 @@ using System;
 using GreenCrescent.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace GreenCrescent.Infrastructure.Identity.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260921091959_AddOrphanAndBeneficiaryPhotos")]
+    partial class AddOrphanAndBeneficiaryPhotos
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -46,9 +49,6 @@ namespace GreenCrescent.Infrastructure.Identity.Migrations
 
                     b.Property<DateOnly?>("DateOfBirth")
                         .HasColumnType("date");
-
-                    b.Property<int?>("FamilyMembersCount")
-                        .HasColumnType("integer");
 
                     b.Property<DateOnly?>("FatherDeathDate")
                         .HasColumnType("date");
@@ -114,10 +114,6 @@ namespace GreenCrescent.Infrastructure.Identity.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
-
-                    b.Property<decimal?>("TotalMonthlyIncome")
-                        .HasPrecision(18, 3)
-                        .HasColumnType("numeric(18,3)");
 
                     b.Property<DateTime?>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");

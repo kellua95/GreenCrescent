@@ -287,76 +287,110 @@ public sealed class ExcelExportService : IExcelExportService
         bool archivedOnly)
     {
         using var workbook = new XLWorkbook();
+
         var sheet = workbook.Worksheets.Add(
             archivedOnly ? "أرشيف المكفولين" : "سجل المكفولين");
+
         sheet.RightToLeft = true;
 
-        var headers = archivedOnly
-            ? new[]
-            {
-                "رقم الملف",
-                "اسم المكفول",
-                "رقم الهاتف",
-                "تاريخ الميلاد",
-                "سبب الأرشفة",
-                "ملاحظات"
-            }
-            : new[]
-            {
-                "رقم الملف",
-                "اسم المكفول",
-                "رقم الهاتف",
-                "تاريخ الميلاد",
-                "عدد الكفالات الفعالة",
-                "الكافل",
-                "الحالة",
-                "ملاحظات"
-            };
+        var headers = new List<string>
+    {
+        "اسم المكفول",
+        "الرقم الوطني للمكفول",
+        "هاتف المكفول",
+        "اسم المعيل",
+        "الرقم الوطني للمعيل",
+        "هاتف المعيل",
+        "عدد أفراد الأسرة",
+        "دخل الأسرة الشهري — د.أ",
+        "كفالات المكفول",
+        "كفالات العائلة",
+        "الحالة"
+    };
 
-        var rowNumber = PrepareSheet(sheet, reportTitle, headers);
+        if (archivedOnly)
+        {
+            headers.Add("سبب الأرشفة");
+        }
+
+        var rowNumber = PrepareSheet(
+            sheet,
+            reportTitle,
+            headers);
+
+        var firstDataRow = rowNumber;
+
+        // إبقاء الأرقام الوطنية والهواتف نصوصًا لحفظ الأصفار الأولى.
+        foreach (var column in new[] { 2, 3, 5, 6 })
+        {
+            sheet.Column(column).Style.NumberFormat.Format = "@";
+        }
 
         foreach (var item in rows)
         {
-            sheet.Cell(rowNumber, 1).Value = item.FileNumber;
-            sheet.Cell(rowNumber, 2).Value = item.Name;
-            sheet.Cell(rowNumber, 3).Value =
-                item.PhoneNumber ?? string.Empty;
+            sheet.Cell(rowNumber, 1).Value = item.Name;
+            sheet.Cell(rowNumber, 2).Value = ReportText(item.NationalNumber);
+            sheet.Cell(rowNumber, 3).Value = ReportText(item.PhoneNumber);
+            sheet.Cell(rowNumber, 4).Value = ReportText(item.GuardianName);
+            sheet.Cell(rowNumber, 5).Value = ReportText(item.GuardianNationalNumber);
+            sheet.Cell(rowNumber, 6).Value = ReportText(item.GuardianPhoneNumber);
 
-            if (item.DateOfBirth.HasValue)
+            if (item.FamilyMembersCount is int familyMembersCount)
             {
-                sheet.Cell(rowNumber, 4).Value =
-                    item.DateOfBirth.Value.ToDateTime(
-                        TimeOnly.MinValue);
-            }
-
-            if (archivedOnly)
-            {
-                sheet.Cell(rowNumber, 5).Value =
-                    item.ArchiveReason ?? string.Empty;
-                sheet.Cell(rowNumber, 6).Value =
-                    item.Notes ?? string.Empty;
+                sheet.Cell(rowNumber, 7).Value = familyMembersCount;
             }
             else
             {
-                sheet.Cell(rowNumber, 5).Value =
-                    item.ActiveSponsorshipsCount;
-                sheet.Cell(rowNumber, 6).Value =
-                    item.ActiveSponsorName ?? string.Empty;
-                sheet.Cell(rowNumber, 7).Value =
-                    GetBeneficiaryStatus(item.Status);
-                sheet.Cell(rowNumber, 8).Value =
-                    item.Notes ?? string.Empty;
+                sheet.Cell(rowNumber, 7).Value = "—";
+            }
+
+            if (item.TotalMonthlyIncome is decimal income)
+            {
+                sheet.Cell(rowNumber, 8).Value = income;
+            }
+            else
+            {
+                sheet.Cell(rowNumber, 8).Value = "—";
+            }
+
+            sheet.Cell(rowNumber, 9).Value =
+                item.ActiveSponsorshipsCount;
+
+            if (item.FamilyActiveSponsorshipsCount is int familyCount)
+            {
+                sheet.Cell(rowNumber, 10).Value = familyCount;
+            }
+            else
+            {
+                sheet.Cell(rowNumber, 10).Value = "—";
+            }
+
+            sheet.Cell(rowNumber, 11).Value =
+                GetBeneficiaryStatus(item.Status) +
+                (item.IsArchived ? " — مؤرشف" : string.Empty);
+
+            if (archivedOnly)
+            {
+                sheet.Cell(rowNumber, 12).Value =
+                    ReportText(item.ArchiveReason);
             }
 
             rowNumber++;
         }
 
-        sheet.Column(4).Style.DateFormat.Format = "yyyy/MM/dd";
+        if (rowNumber > firstDataRow)
+        {
+            sheet.Range(firstDataRow, 8, rowNumber - 1, 8)
+                .Style.NumberFormat.Format = "#,##0.000";
+        }
 
-        FinishSheet(sheet, headers.Length, rowNumber - 1);
+        FinishSheet(sheet, headers.Count, rowNumber - 1);
 
         return Save(workbook);
     }
+
+    private static string ReportText(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? "—" : value;
 
     private static int PrepareSheet(
         IXLWorksheet sheet,

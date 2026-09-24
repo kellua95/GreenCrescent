@@ -5,6 +5,7 @@
 @using GreenCrescent.Application.Features.OrphanApplications
 @using GreenCrescent.Core.Enums
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Forms
 @inject IOrphanApplicationService OrphanApplicationService
 
 <PageTitle>طلب كفالة يتيم</PageTitle>
@@ -142,10 +143,6 @@
                     <div class="form-field">
                         <label>تاريخ الميلاد <b>*</b></label>
                         <InputDate @bind-Value="form.DateOfBirth" />
-                        <small>
-                            يتم رفض الطلب تلقائيًا إذا بلغ اليتيم
-                            15 سنة.
-                        </small>
                     </div>
 
                     <div class="form-field">
@@ -160,6 +157,41 @@
                         <label>الجنسية <b>*</b></label>
                         <input @bind="form.Nationality"
                                maxlength="100" />
+                    </div>
+
+                    <div class="form-field ">
+                        <label>صورة اليتيم</label>
+
+                        <InputFile @key="photoInputKey"
+                                   OnChange="PhotoChangedAsync"
+                                   accept="image/jpeg,image/png"
+                                   disabled="@(isSubmitting || isPhotoLoading)" />
+
+                        <small>JPG أو PNG، بحجم لا يتجاوز 500 كيلوبايت.</small>
+
+                        @if (isPhotoLoading)
+                        {
+                            <p>جاري تحميل الصورة...</p>
+                        }
+
+                        @if (photoError is not null)
+                        {
+                            <p class="photo-error" role="alert">@photoError</p>
+                        }
+
+                        @if (photoPreview is not null)
+                        {
+                            <div class="photo-preview">
+                                <img src="@photoPreview" alt="معاينة صورة اليتيم" />
+
+                                <button type="button"
+                                        class="remove-button"
+                                        disabled="@(isSubmitting || isPhotoLoading)"
+                                        @onclick="RemovePhoto">
+                                    إزالة الصورة
+                                </button>
+                            </div>
+                        }
                     </div>
 
                     <div class="form-field full-width">
@@ -255,9 +287,23 @@
 
                 <div class="form-grid">
                     <div class="form-field">
-                        <label>اسم المعيل <b>*</b></label>
-                        <input @bind="form.GuardianName"
-                               maxlength="200" />
+                        <label>اسم المعيل الأول <b>*</b></label>
+                        <input @bind="guardianFirstName" maxlength="50" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>اسم الأب <b>*</b></label>
+                        <input @bind="guardianFatherName" maxlength="50" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>اسم الجد <b>*</b></label>
+                        <input @bind="guardianGrandfatherName" maxlength="50" />
+                    </div>
+
+                    <div class="form-field">
+                        <label>اسم العائلة <b>*</b></label>
+                        <input @bind="guardianFamilyName" maxlength="50" />
                     </div>
 
                     <div class="form-field">
@@ -524,7 +570,7 @@
 
                 <button type="submit"
                         class="submit-button"
-                        disabled="@isSubmitting">
+                        disabled="@(isSubmitting || isPhotoLoading)">
                     @(isSubmitting
                         ? "جاري إرسال الطلب..."
                         : "إرسال طلب الكفالة")
@@ -538,14 +584,90 @@
     private SubmitOrphanApplicationRequest form = CreateForm();
     private readonly List<FamilyMemberForm> familyMembers = [];
 
+    private string guardianFirstName = string.Empty;
+    private string guardianFatherName = string.Empty;
+    private string guardianGrandfatherName = string.Empty;
+    private string guardianFamilyName = string.Empty;
+
     private bool isSubmitting;
     private bool wasAutomaticallyRejected;
     private string? trackingCode;
     private string? errorMessage;
 
+    private const int MaxPhotoBytes = 500 * 1024;
+
+    private bool isPhotoLoading;
+    private string? photoPreview;
+    private string? photoError;
+    private int photoInputKey;
+
+    private async Task PhotoChangedAsync(InputFileChangeEventArgs args)
+    {
+        if (isSubmitting || isPhotoLoading)
+        {
+            return;
+        }
+
+        photoError = null;
+        photoPreview = null;
+        form.PhotoData = null;
+        form.PhotoContentType = null;
+        isPhotoLoading = true;
+
+        try
+        {
+            var file = args.File;
+
+            if (file.Size <= 0 || file.Size > MaxPhotoBytes)
+            {
+                photoError = "حجم الصورة يجب ألا يتجاوز 500 كيلوبايت.";
+                return;
+            }
+
+            var contentType = file.ContentType.ToLowerInvariant();
+
+            if (contentType is not ("image/jpeg" or "image/png"))
+            {
+                photoError = "اختر صورة بصيغة JPG أو PNG.";
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(MaxPhotoBytes);
+            using var buffer = new MemoryStream();
+
+            await stream.CopyToAsync(buffer);
+
+            form.PhotoData = buffer.ToArray();
+            form.PhotoContentType = contentType;
+
+            photoPreview =
+                $"data:{contentType};base64,{Convert.ToBase64String(form.PhotoData)}";
+        }
+        catch (Exception)
+        {
+            photoError = "تعذر قراءة الصورة. اختر صورة أخرى وحاول مجددًا.";
+            form.PhotoData = null;
+            form.PhotoContentType = null;
+            photoPreview = null;
+        }
+        finally
+        {
+            isPhotoLoading = false;
+        }
+    }
+
+    private void RemovePhoto()
+    {
+        form.PhotoData = null;
+        form.PhotoContentType = null;
+        photoPreview = null;
+        photoError = null;
+        photoInputKey++;
+    }
+
     private async Task SubmitAsync()
     {
-        if (isSubmitting)
+        if (isSubmitting || isPhotoLoading)
         {
             return;
         }
@@ -596,6 +718,26 @@
 
     private string? ValidateForm()
     {
+        if (string.IsNullOrWhiteSpace(guardianFirstName) ||
+    string.IsNullOrWhiteSpace(guardianFatherName) ||
+    string.IsNullOrWhiteSpace(guardianGrandfatherName) ||
+    string.IsNullOrWhiteSpace(guardianFamilyName))
+        {
+            return "يرجى إدخال الاسم الرباعي للمعيل.";
+        }
+
+        form.GuardianName = string.Join(
+            " ",
+            guardianFirstName.Trim(),
+            guardianFatherName.Trim(),
+            guardianGrandfatherName.Trim(),
+            guardianFamilyName.Trim());
+
+        if (form.GuardianName.Length > 200)
+        {
+            return "اسم المعيل يجب ألا يتجاوز 200 حرف.";
+        }
+
         if (string.IsNullOrWhiteSpace(form.ApplicantName))
         {
             return "اسم مقدم الطلب مطلوب.";
@@ -642,7 +784,7 @@
             return "تاريخ وفاة الأب مطلوب.";
         }
 
-      
+
         if (string.IsNullOrWhiteSpace(
                 form.FatherDeathReason))
         {
@@ -718,6 +860,11 @@
         trackingCode = null;
         errorMessage = null;
         wasAutomaticallyRejected = false;
+        guardianFirstName = string.Empty;
+        guardianFatherName = string.Empty;
+        guardianGrandfatherName = string.Empty;
+        guardianFamilyName = string.Empty;
+        RemovePhoto();
     }
 
     private static SubmitOrphanApplicationRequest CreateForm()

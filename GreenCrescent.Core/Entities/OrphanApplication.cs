@@ -44,6 +44,10 @@ public sealed class OrphanApplication : BaseEntity
 
     public string? PhoneNumber { get; set; }
 
+    public byte[]? PhotoData { get; set; }
+
+    public string? PhotoContentType { get; set; }
+
     // بيانات الأب
     public DateOnly FatherDeathDate { get; set; }
 

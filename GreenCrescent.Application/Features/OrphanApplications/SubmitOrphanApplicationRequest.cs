@@ -38,6 +38,10 @@ public sealed class SubmitOrphanApplicationRequest
 
     public string? PhoneNumber { get; set; }
 
+    public byte[]? PhotoData { get; set; }
+
+    public string? PhotoContentType { get; set; }
+
     public DateOnly FatherDeathDate { get; set; }
 
     public string FatherDeathReason { get; set; } =

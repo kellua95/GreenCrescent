@@ -241,7 +241,7 @@ public sealed class ReportService(
                 ));
         }
 
-        return await query
+        var rows = await query
             .OrderBy(item => item.FileNumber)
             .Select(item => new BeneficiaryDto(
                 item.Id,
@@ -276,8 +276,64 @@ public sealed class ReportService(
 
                 item.Sponsorships.Count(sponsorship =>
                     sponsorship.Status ==
-                    SponsorshipStatus.Active)))
+                    SponsorshipStatus.Active))
+            )
             .ToListAsync(cancellationToken);
+        // نستخدم جميع الكفالات الفعالة، وليس نتائج البحث أو الصفحة فقط.
+        var guardianNumbers = rows
+            .Select(item => item.GuardianNationalNumber?.Trim())
+            .Where(number => !string.IsNullOrWhiteSpace(number))
+            .Select(number => number!)
+            .Distinct()
+            .ToList();
+
+        if (guardianNumbers.Count == 0)
+        {
+            return rows;
+        }
+
+        var familyCounts = await dbContext.Sponsorships
+            .AsNoTracking()
+            .Where(sponsorship =>
+                sponsorship.Status == SponsorshipStatus.Active &&
+                sponsorship.Beneficiary.GuardianNationalNumber != null &&
+                guardianNumbers.Contains(
+                    sponsorship.Beneficiary.GuardianNationalNumber!.Trim()))
+            .GroupBy(sponsorship =>
+                sponsorship.Beneficiary.GuardianNationalNumber!.Trim())
+            .Select(group => new
+            {
+                GuardianNationalNumber = group.Key,
+                Count = group.Count()
+            })
+            .ToDictionaryAsync(
+                item => item.GuardianNationalNumber,
+                item => item.Count,
+                cancellationToken);
+
+        return rows
+            .Select(item =>
+            {
+                var guardianNumber =
+                    item.GuardianNationalNumber?.Trim();
+
+                int? familyCount = null;
+
+                if (!string.IsNullOrWhiteSpace(guardianNumber))
+                {
+                    familyCount = familyCounts.TryGetValue(
+                        guardianNumber,
+                        out var count)
+                            ? count
+                            : 0;
+                }
+
+                return item with
+                {
+                    FamilyActiveSponsorshipsCount = familyCount
+                };
+            })
+            .ToList();
     }
 
     public async Task<IReadOnlyList<GeneralSponsorshipReportDto>>

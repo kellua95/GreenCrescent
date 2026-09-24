@@ -77,7 +77,15 @@ public sealed class BeneficiaryService(
 
                 beneficiary.Sponsorships.Count(sponsorship =>
                     sponsorship.Status ==
-                    SponsorshipStatus.Active)))
+                    SponsorshipStatus.Active))
+            {
+                NationalNumber = beneficiary.NationalNumber,
+                GuardianName = beneficiary.GuardianName,
+                GuardianNationalNumber = beneficiary.GuardianNationalNumber,
+                GuardianPhoneNumber = beneficiary.GuardianPhoneNumber,
+                FamilyMembersCount = beneficiary.FamilyMembersCount,
+                TotalMonthlyIncome = beneficiary.TotalMonthlyIncome
+            })
             .ToListAsync(cancellationToken);
     }
 
@@ -191,7 +199,15 @@ public sealed class BeneficiaryService(
 
                     item.Sponsorships.Count(sponsorship =>
                         sponsorship.Status ==
-                        SponsorshipStatus.Active)))
+                        SponsorshipStatus.Active))
+                {
+                    NationalNumber = item.NationalNumber,
+                    GuardianName = item.GuardianName,
+                    GuardianNationalNumber = item.GuardianNationalNumber,
+                    GuardianPhoneNumber = item.GuardianPhoneNumber,
+                    FamilyMembersCount = item.FamilyMembersCount,
+                    TotalMonthlyIncome = item.TotalMonthlyIncome
+                })
                 .ToListAsync(cancellationToken);
 
             return new PagedResult<BeneficiaryDto>(
@@ -234,7 +250,15 @@ public sealed class BeneficiaryService(
                     .FirstOrDefault(),
                 beneficiary.Sponsorships.Count(sponsorship =>
                     sponsorship.Status ==
-                    SponsorshipStatus.Active)))
+                    SponsorshipStatus.Active))
+            {
+                NationalNumber = beneficiary.NationalNumber,
+                GuardianName = beneficiary.GuardianName,
+                GuardianNationalNumber = beneficiary.GuardianNationalNumber,
+                GuardianPhoneNumber = beneficiary.GuardianPhoneNumber,
+                FamilyMembersCount = beneficiary.FamilyMembersCount,
+                TotalMonthlyIncome = beneficiary.TotalMonthlyIncome
+            })
             .FirstOrDefaultAsync(cancellationToken);
     }
 

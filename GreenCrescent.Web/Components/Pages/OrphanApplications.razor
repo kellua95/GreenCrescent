@@ -212,7 +212,14 @@
                     يمكن الاطلاع عليه، ولا يمكن الموافقة عليه.
                 </div>
             }
-
+            @if (details.PhotoData is { Length: > 0 } photo &&
+                 (details.PhotoContentType is "image/jpeg" or "image/png"))
+            {
+                <div class="orphan-photo">
+                    <img src="@($"data:{details.PhotoContentType};base64,{Convert.ToBase64String(photo)}")"
+                         alt="صورة اليتيم" />
+                </div>
+            }
             <h3>بيانات اليتيم</h3>
             <dl class="details-grid">
                 <div><dt>الرقم الوطني</dt><dd>@details.OrphanNationalNumber</dd></div>

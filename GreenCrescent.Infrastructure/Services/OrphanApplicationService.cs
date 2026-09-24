@@ -19,6 +19,7 @@ public sealed class OrphanApplicationService(
             CancellationToken cancellationToken = default)
     {
         ValidateSubmission(request);
+        var photoContentType = ValidatePhoto(request.PhotoData);
 
         var nationalNumber =
             request.OrphanNationalNumber.Trim();
@@ -101,6 +102,9 @@ public sealed class OrphanApplicationService(
             PhoneNumber =
                 NormalizeOptional(
                     request.PhoneNumber),
+
+            PhotoData = request.PhotoData?.ToArray(),
+            PhotoContentType = photoContentType,
 
             FatherDeathDate =
                 request.FatherDeathDate,
@@ -524,7 +528,11 @@ public sealed class OrphanApplicationService(
             application.BeneficiaryId,
             application.Notes,
 
-            familyMembers);
+            familyMembers)
+            {
+                PhotoData = application.PhotoData,
+                PhotoContentType = application.PhotoContentType
+            };
     }
 
     public async Task MarkUnderReviewAsync(
@@ -658,6 +666,13 @@ public sealed class OrphanApplicationService(
 
             DateOfBirth =
                 application.DateOfBirth,
+
+            PhotoData = application.PhotoData?.ToArray(),
+            PhotoContentType = application.PhotoContentType,
+
+            FamilyMembersCount = application.FamilyMembersCount,
+
+            TotalMonthlyIncome = application.TotalMonthlyIncome,
 
             GuardianName =
                 application.GuardianName,
@@ -966,5 +981,51 @@ public sealed class OrphanApplicationService(
         return string.IsNullOrWhiteSpace(value)
             ? null
             : value.Trim();
+    }
+
+    private static string? ValidatePhoto(byte[]? data)
+    {
+        if (data is null)
+        {
+            return null;
+        }
+
+        if (data.Length == 0 || data.Length > 500 * 1024)
+        {
+            throw new InvalidOperationException(
+                "حجم الصورة يجب أن يكون بين 1 بايت و500 كيلوبايت.");
+        }
+
+        var isPng =
+            data.Length >= 8 &&
+            data[0] == 0x89 &&
+            data[1] == 0x50 &&
+            data[2] == 0x4E &&
+            data[3] == 0x47 &&
+            data[4] == 0x0D &&
+            data[5] == 0x0A &&
+            data[6] == 0x1A &&
+            data[7] == 0x0A;
+
+        var isJpeg =
+            data.Length >= 4 &&
+            data[0] == 0xFF &&
+            data[1] == 0xD8 &&
+            data[2] == 0xFF &&
+            data[^2] == 0xFF &&
+            data[^1] == 0xD9;
+
+        if (isPng)
+        {
+            return "image/png";
+        }
+
+        if (isJpeg)
+        {
+            return "image/jpeg";
+        }
+
+        throw new InvalidOperationException(
+            "الملف لا يحمل توقيع صورة JPG أو PNG صالحًا.");
     }
 }

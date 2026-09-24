@@ -458,3 +458,23 @@ form {
         margin: 1rem auto;
     }
 }
+.photo-preview {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: .8rem;
+}
+
+    .photo-preview img {
+        width: 120px;
+        height: 150px;
+        object-fit: contain;
+        border: 1px solid #cbd8d0;
+        border-radius: 10px;
+        background: #f8faf9;
+    }
+
+.photo-error {
+    margin-top: .5rem;
+    color: #a1281e;
+}

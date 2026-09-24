@@ -79,4 +79,8 @@ public sealed record OrphanApplicationDetailsDto(
             }
             .Where(value =>
                 !string.IsNullOrWhiteSpace(value)));
+
+    public byte[]? PhotoData { get; init; }
+
+    public string? PhotoContentType { get; init; }
 }

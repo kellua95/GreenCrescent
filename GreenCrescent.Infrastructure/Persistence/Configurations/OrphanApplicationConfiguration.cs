@@ -41,6 +41,12 @@ public sealed class OrphanApplicationConfiguration
             .HasMaxLength(32)
             .IsRequired();
 
+        builder.Property(item => item.PhotoData)
+            .HasColumnType("bytea");
+
+        builder.Property(item => item.PhotoContentType)
+            .HasMaxLength(50);
+
         builder.HasIndex(x => x.TrackingCode)
             .IsUnique();
 

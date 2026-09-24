@@ -27,6 +27,10 @@ namespace GreenCrescent.Core.Entities
 
         public string? Address { get; set; }
 
+        public byte[]? PhotoData { get; set; }
+
+        public string? PhotoContentType { get; set; }
+
         public string? GuardianName { get; set; }
 
         public string? GuardianNationalNumber { get; set; }
@@ -38,6 +42,10 @@ namespace GreenCrescent.Core.Entities
         public DateOnly? FatherDeathDate { get; set; }
 
         public string? FatherDeathReason { get; set; }
+
+        public int? FamilyMembersCount { get; set; }
+
+        public decimal? TotalMonthlyIncome { get; set; }
 
         public BeneficiaryStatus Status { get; set; } =
             BeneficiaryStatus.WaitingForSponsor;

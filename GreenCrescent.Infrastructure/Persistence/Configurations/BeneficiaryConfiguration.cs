@@ -72,6 +72,15 @@ namespace GreenCrescent.Infrastructure.Persistence.Configurations
             builder.Property(item => item.ArchiveReason)
                 .HasMaxLength(1000);
 
+            builder.Property(item => item.PhotoData)
+                .HasColumnType("bytea");
+
+            builder.Property(item => item.PhotoContentType)
+                .HasMaxLength(50);
+
+            builder.Property(item => item.TotalMonthlyIncome)
+                .HasPrecision(18, 3);
+
             builder.HasIndex(item => item.IsArchived);
 
             builder.HasIndex(x => x.NationalNumber)

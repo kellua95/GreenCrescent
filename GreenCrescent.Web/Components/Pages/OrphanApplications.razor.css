@@ -472,3 +472,16 @@ dd {
         margin-top: 30px;
     }
 }
+
+.orphan-photo {
+    margin-bottom: 1rem;
+}
+
+    .orphan-photo img {
+        width: 120px;
+        height: 150px;
+        object-fit: contain;
+        border: 1px solid #cbd8d0;
+        border-radius: 8px;
+    }
+

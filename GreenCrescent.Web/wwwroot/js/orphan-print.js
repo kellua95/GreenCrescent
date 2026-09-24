@@ -199,6 +199,17 @@
         .print-signatures p {
             margin-top: 28px;
         }
+        .orphan-photo {
+            margin-bottom: 12px;
+            break-inside: avoid;
+        }
+
+        .orphan-photo img {
+            width: 30mm;
+            height: 38mm;
+            object-fit: contain;
+            border: 1px solid #aaa;
+        }
     </style>
 </head>
 <body>${copy.outerHTML}</body>
