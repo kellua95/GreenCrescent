@@ -107,11 +107,11 @@
 
                     <div class="field-grid">
                         <div class="field">
-                            <label for="file-number">رقم الملف *</label>
-                            <InputNumber id="file-number"
-                                         @bind-Value="form.FileNumber"
-                                         min="1" />
-                            <ValidationMessage For="() => form.FileNumber" />
+                            <label for="file-number">رقم الملف</label>
+                            <input id="file-number"
+                                   type="text"
+                                   value="@(saved?.FileNumber.ToString() ?? "يُحدّد تلقائيًا عند الحفظ")"
+                                   readonly />
                         </div>
 
                         <div class="field wide">
@@ -468,7 +468,6 @@
     {
         form = new BeneficiaryEditorModel
         {
-            FileNumber = item?.FileNumber,
             Name = item?.Name ?? string.Empty,
             PhoneNumber = item?.PhoneNumber,
             DateOfBirth = item?.DateOfBirth,
@@ -599,7 +598,7 @@
                 await BeneficiaryService.UpdateAsync(
                     new UpdateBeneficiaryRequest(
                         persistedId.Value,
-                        form.FileNumber!.Value,
+                        saved!.FileNumber,
                         form.Name,
                         form.PhoneNumber,
                         form.DateOfBirth,
@@ -615,7 +614,7 @@
             {
                 persistedId = await BeneficiaryService.CreateAsync(
                     new CreateBeneficiaryRequest(
-                        form.FileNumber!.Value,
+                        0,
                         form.Name,
                         form.PhoneNumber,
                         form.DateOfBirth,
@@ -816,10 +815,6 @@
 
     private sealed class BeneficiaryEditorModel
     {
-        [Required(ErrorMessage = "رقم الملف مطلوب.")]
-        [Range(1, int.MaxValue, ErrorMessage = "رقم الملف يجب أن يكون أكبر من صفر.")]
-        public int? FileNumber { get; set; }
-
         [Required(ErrorMessage = "اسم المكفول مطلوب.")]
         [StringLength(200, ErrorMessage = "الاسم يجب ألا يتجاوز 200 حرف.")]
         public string Name { get; set; } = string.Empty;

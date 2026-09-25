@@ -252,3 +252,12 @@ dd {
         grid-column: auto;
     }
 }
+.file-number-display {
+    min-height: 44px;
+    padding: .65rem .75rem;
+    background: #edf7f1;
+    color: #08783e;
+    border: 1px solid #cbd8d0;
+    border-radius: 9px;
+    font-weight: 700;
+}

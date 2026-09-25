@@ -304,7 +304,7 @@ public sealed class BeneficiaryService(
     CancellationToken cancellationToken = default)
     {
         Validate(
-            request.FileNumber,
+            1,
             request.Name,
             request.PhoneNumber,
             request.Notes);
@@ -314,25 +314,32 @@ public sealed class BeneficiaryService(
 
         var photoContentType = DetectPhotoContentType(request.PhotoData);
 
-        var fileNumberExists = await dbContext.Beneficiaries
-            .AnyAsync(
-                item => item.FileNumber == request.FileNumber,
-                cancellationToken);
+        await using var transaction =
+            await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        if (fileNumberExists)
-        {
-            throw new InvalidOperationException(
-                "رقم الملف مستخدم لمكفول آخر.");
-        }
+                // يمنع عمليتي إضافة متزامنتين من اختيار الرقم نفسه.
+                // يجب أن يستخدم مسار الموافقة على طلب اليتيم القفل نفسه.
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    """
+            LOCK TABLE "Beneficiaries" IN SHARE ROW EXCLUSIVE MODE;
+            """,
+                    cancellationToken);
 
         await EnsureNationalNumberAvailableAsync(
-            request.AdditionalData?.NationalNumber,
-            null,
-            cancellationToken);
+                    request.AdditionalData?.NationalNumber,
+                    null,
+                    cancellationToken);
+
+        var lastFileNumber = await dbContext.Beneficiaries
+            .MaxAsync(
+                item => (int?)item.FileNumber,
+                cancellationToken) ?? 0;
+
+        var nextFileNumber = checked(lastFileNumber + 1);
 
         var beneficiary = new Beneficiary
         {
-            FileNumber = request.FileNumber,
+            FileNumber = nextFileNumber,
             Name = request.Name.Trim(),
             PhoneNumber = NormalizeOptional(request.PhoneNumber),
             DateOfBirth = request.DateOfBirth,
@@ -350,6 +357,7 @@ public sealed class BeneficiaryService(
         dbContext.Beneficiaries.Add(beneficiary);
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return beneficiary.Id;
     }
@@ -358,20 +366,6 @@ public sealed class BeneficiaryService(
     UpdateBeneficiaryRequest request,
     CancellationToken cancellationToken = default)
     {
-        Validate(
-            request.FileNumber,
-            request.Name,
-            request.PhoneNumber,
-            request.Notes);
-
-        ValidateBirthDate(request.DateOfBirth);
-        ValidateAdditionalData(request.AdditionalData);
-
-        // نتحقق من الصورة قبل تغيير الكائن المتتبع.
-        var photoContentType = request.ChangePhoto
-            ? DetectPhotoContentType(request.PhotoData)
-            : null;
-
         var beneficiary = await dbContext.Beneficiaries
             .FirstOrDefaultAsync(
                 item => item.Id == request.Id,
@@ -379,18 +373,19 @@ public sealed class BeneficiaryService(
             ?? throw new InvalidOperationException(
                 "المكفول المطلوب غير موجود.");
 
-        var fileNumberExists = await dbContext.Beneficiaries
-            .AnyAsync(
-                item =>
-                    item.FileNumber == request.FileNumber &&
-                    item.Id != request.Id,
-                cancellationToken);
+        // نعتمد رقم الملف المحفوظ، ونتجاهل الرقم المرسل.
+        Validate(
+            beneficiary.FileNumber,
+            request.Name,
+            request.PhoneNumber,
+            request.Notes);
 
-        if (fileNumberExists)
-        {
-            throw new InvalidOperationException(
-                "رقم الملف مستخدم لمكفول آخر.");
-        }
+        ValidateBirthDate(request.DateOfBirth);
+        ValidateAdditionalData(request.AdditionalData);
+
+        var photoContentType = request.ChangePhoto
+            ? DetectPhotoContentType(request.PhotoData)
+            : null;
 
         if (request.AdditionalData is { } additionalData)
         {
@@ -400,9 +395,10 @@ public sealed class BeneficiaryService(
                 cancellationToken);
         }
 
-        beneficiary.FileNumber = request.FileNumber;
         beneficiary.Name = request.Name.Trim();
-        beneficiary.PhoneNumber = NormalizeOptional(request.PhoneNumber);
+        beneficiary.PhoneNumber =
+            NormalizeOptional(request.PhoneNumber);
+
         beneficiary.DateOfBirth = request.DateOfBirth;
         beneficiary.Notes = NormalizeOptional(request.Notes);
 
