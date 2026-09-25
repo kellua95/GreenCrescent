@@ -276,6 +276,8 @@ public sealed class OrphanApplicationService(
             int pageSize,
             CancellationToken cancellationToken = default)
     {
+        await EnsureApplicationsAccessAsync(cancellationToken);
+
         pageNumber = Math.Max(1, pageNumber);
 
         pageSize = pageSize is 10 or 25 or 50
@@ -437,6 +439,7 @@ public sealed class OrphanApplicationService(
     int id,
     CancellationToken cancellationToken = default)
     {
+        await EnsureApplicationsAccessAsync(cancellationToken);
         var application =
             await dbContext.OrphanApplications
                 .AsNoTracking()
@@ -539,6 +542,8 @@ public sealed class OrphanApplicationService(
         int applicationId,
         CancellationToken cancellationToken = default)
     {
+        var reviewerId = await EnsureApplicationsAccessAsync(
+            cancellationToken);
         var application =
             await dbContext.OrphanApplications
                 .FirstOrDefaultAsync(
@@ -578,6 +583,8 @@ public sealed class OrphanApplicationService(
         ApproveOrphanApplicationRequest request,
         CancellationToken cancellationToken = default)
     {
+        var reviewerId = await EnsureApplicationsAccessAsync(
+            cancellationToken);
         await using var transaction =
             await dbContext.Database.BeginTransactionAsync(
                 cancellationToken);
@@ -739,6 +746,8 @@ public sealed class OrphanApplicationService(
         RejectOrphanApplicationRequest request,
         CancellationToken cancellationToken = default)
     {
+        var reviewerId = await EnsureApplicationsAccessAsync(
+            cancellationToken);
         if (string.IsNullOrWhiteSpace(request.Reason))
         {
             throw new InvalidOperationException(
@@ -794,6 +803,41 @@ public sealed class OrphanApplicationService(
 
         await dbContext.SaveChangesAsync(
             cancellationToken);
+    }
+
+    private async Task<string> EnsureApplicationsAccessAsync(
+    CancellationToken cancellationToken)
+    {
+        var userId = await currentUserService.GetUserIdAsync();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new UnauthorizedAccessException(
+                "يجب تسجيل الدخول للوصول إلى الطلبات.");
+        }
+
+        var hasAccess = await (
+            from user in dbContext.Users.AsNoTracking()
+            join userRole in dbContext.UserRoles
+                on user.Id equals userRole.UserId
+            join role in dbContext.Roles
+                on userRole.RoleId equals role.Id
+            where user.Id == userId
+                  && user.IsActive
+                  && (
+                      role.Name == AppRoles.Admin ||
+                      role.Name == AppRoles.ApplicationsStaff
+                  )
+            select user.Id
+        ).AnyAsync(cancellationToken);
+
+        if (!hasAccess)
+        {
+            throw new UnauthorizedAccessException(
+                "ليس لديك صلاحية الوصول إلى الطلبات أو مراجعتها.");
+        }
+
+        return userId;
     }
 
     private static bool HasReachedMaximumAge(

@@ -306,22 +306,10 @@
     }
 
     private static string FormatRoles(
-        IEnumerable<string> roles)
+    IEnumerable<string> roles)
     {
         var names = roles
-            .Select(role => role switch
-            {
-                AppRoles.Admin =>
-                    "مدير نظام",
-
-                AppRoles.Staff =>
-                    "موظف",
-
-                AppRoles.Viewer =>
-                    "مشاهدة فقط",
-
-                _ => role
-            })
+            .Select(AppRoles.GetDisplayName)
             .ToList();
 
         return names.Count == 0

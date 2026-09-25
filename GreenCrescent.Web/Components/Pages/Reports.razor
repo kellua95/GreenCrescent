@@ -6,7 +6,7 @@
 @using Microsoft.AspNetCore.Authorization
 @using GreenCrescent.Application.Features.Sponsors
 @using GreenCrescent.Application.Features.Beneficiaries
-@attribute [Authorize(Roles = "Admin,Staff,Viewer")]
+@attribute [Authorize(Roles = "Admin,Staff,Viewer,ApplicationsStaff")]
 @inject IReportService ReportService
 @inject IJSRuntime JS
 @inject IExcelExportService ExcelExportService

@@ -41,14 +41,21 @@ internal static class IdentityComponentsEndpointRouteBuilderExtensions
         });
 
         accountGroup.MapPost("/Logout", async (
-            ClaimsPrincipal user,
+            HttpContext context,
             [FromServices] SignInManager<ApplicationUser> signInManager,
-            [FromForm] string returnUrl) =>
+            [FromServices] IAntiforgery antiforgery) =>
         {
-            await signInManager.SignOutAsync();
-            return TypedResults.LocalRedirect($"~/{returnUrl}");
-        });
+            await antiforgery.ValidateRequestAsync(context);
 
+            await signInManager.SignOutAsync();
+
+            context.Response.Headers["Cache-Control"] =
+                "no-store, no-cache, max-age=0";
+
+            context.Response.Headers["Pragma"] = "no-cache";
+
+            return TypedResults.LocalRedirect("~/Account/Login");
+        });
         accountGroup.MapPost("/PasskeyCreationOptions", async (
             HttpContext context,
             [FromServices] UserManager<ApplicationUser> userManager,

@@ -1,5 +1,8 @@
 ﻿@page "/"
+
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Components.Authorization
+
 @attribute [Authorize]
 
 <PageTitle>لوحة التحكم</PageTitle>
@@ -8,38 +11,78 @@
     <header class="dashboard-header">
         <span>جمعية الهلال الأخضر الخيرية</span>
         <h1>لوحة التحكم</h1>
-        <p>الوصول السريع إلى أقسام إدارة الكفالات.</p>
+        <p>الوصول السريع إلى الأقسام المتاحة لحسابك.</p>
     </header>
 
     <section class="dashboard-links">
-        <a href="/sponsors">
-            <strong>إدارة الكفلاء</strong>
-            <span>إضافة الكفلاء والبحث في سجلاتهم.</span>
-        </a>
+        <AuthorizeView Roles="Admin,Staff"
+                       Context="managementAuthorization">
+            <Authorized>
+                <a href="/sponsors">
+                    <strong>إدارة الكفلاء</strong>
+                    <span>إضافة الكفلاء والبحث في سجلاتهم.</span>
+                </a>
 
-        <a href="/beneficiaries">
-            <strong>إدارة المكفولين</strong>
-            <span>إضافة المكفولين ومتابعة حالاتهم.</span>
-        </a>
+                <a href="/beneficiaries">
+                    <strong>إدارة المكفولين</strong>
+                    <span>إضافة المكفولين ومتابعة حالاتهم.</span>
+                </a>
 
-        <a href="/sponsorships">
-            <strong>إدارة الكفالات</strong>
-            <span>إنشاء الكفالات ومتابعة تواريخها.</span>
-        </a>
+                <a href="/sponsorships">
+                    <strong>إدارة الكفالات</strong>
+                    <span>إنشاء الكفالات ومتابعة تواريخها.</span>
+                </a>
 
-        <a href="/sponsorship-actions">
-            <strong>إجراءات الكفالات</strong>
-            <span>الاستبدال والإيقاف وتغيير قيمة الكفالة.</span>
-        </a>
+                <a href="/sponsorship-actions">
+                    <strong>إجراءات الكفالات</strong>
+                    <span>الاستبدال والإيقاف وتغيير قيمة الكفالة.</span>
+                </a>
 
-        <a href="/financial-entry">
-            <strong>الإدخال المالي</strong>
-            <span>تسجيل الدفعات والتبرعات المالية.</span>
-        </a>
+                <a href="/responsible-sheikhs">
+                    <strong>المعرّفون</strong>
+                    <span>إدارة سجلات المعرّفين.</span>
+                </a>
 
-        <a href="/reports">
-            <strong>التقارير</strong>
-            <span>استعراض وطباعة وتصدير التقارير.</span>
+                <a href="/financial-entry">
+                    <strong>الإدخال المالي</strong>
+                    <span>تسجيل الدفعات والتبرعات المالية.</span>
+                </a>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="Admin,ApplicationsStaff"
+                       Context="applicationsAuthorization">
+            <Authorized>
+                <a href="/orphan-applications">
+                    <strong>طلبات الأيتام</strong>
+                    <span>مراجعة الطلبات والموافقة والرفض ومتابعة الأرشيف.</span>
+                </a>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="Admin,Staff,ApplicationsStaff,Viewer"
+                       Context="reportsAuthorization">
+            <Authorized>
+                <a href="/reports">
+                    <strong>التقارير</strong>
+                    <span>استعراض وطباعة وتصدير التقارير.</span>
+                </a>
+            </Authorized>
+        </AuthorizeView>
+
+        <AuthorizeView Roles="Admin"
+                       Context="adminAuthorization">
+            <Authorized>
+                <a href="/users">
+                    <strong>إدارة المستخدمين</strong>
+                    <span>متابعة المستخدمين وتفعيل الحسابات وإيقافها.</span>
+                </a>
+            </Authorized>
+        </AuthorizeView>
+
+        <a href="/Account/Manage">
+            <strong>إعدادات الحساب</strong>
+            <span>إدارة بيانات حسابك وإعدادات الدخول.</span>
         </a>
     </section>
 </div>

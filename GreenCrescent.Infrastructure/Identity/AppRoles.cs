@@ -1,20 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿namespace GreenCrescent.Infrastructure.Identity;
 
-namespace GreenCrescent.Infrastructure.Identity
+public static class AppRoles
 {
-    public static class AppRoles
-    {
-        public const string Admin = "Admin";
-        public const string Staff = "Staff";
-        public const string Viewer = "Viewer";
+    public const string Admin = "Admin";
+    public const string Staff = "Staff";
+    public const string ApplicationsStaff = "ApplicationsStaff";
+    public const string Viewer = "Viewer";
 
-        public static readonly string[] All =
-        [
-            Admin,
-            Staff,
-            Viewer
-        ];
-    }
+    public static readonly string[] All =
+    [
+        Admin,
+        Staff,
+        ApplicationsStaff,
+        Viewer
+    ];
+
+    public static string GetDisplayName(string role) => role switch
+    {
+        Admin => "مدير النظام",
+        Staff => "موظف الكفالات",
+        ApplicationsStaff => "موظف الطلبات",
+        Viewer => "موظف التقارير",
+        _ => role
+    };
 }

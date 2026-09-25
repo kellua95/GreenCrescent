@@ -106,46 +106,21 @@
 
                 <InputRadioGroup @bind-Value="Input.Role">
                     <div class="role-options">
+                        @foreach (var role in AppRoles.All)
+                        {
+                            <label class="role-option">
+                                <InputRadio Value="@role" />
 
-                    <label class="role-option">
-                        <InputRadio Value="@("Staff")" />
-
-                        <span class="role-option-content">
-                            <strong>موظف</strong>
-
-                            <small>
-                                إدارة الكفلاء والمكفولين والكفالات
-                                والإدخالات المالية.
-                            </small>
-                        </span>
-                    </label>
-
-                    <label class="role-option">
-                        <InputRadio Value="@("Viewer")" />
-
-                        <span class="role-option-content">
-                            <strong>مشاهدة فقط</strong>
-
-                            <small>
-                                يستطيع مشاهدة التقارير دون تعديل البيانات.
-                            </small>
-                        </span>
-                    </label>
-
-                    <label class="role-option">
-                        <InputRadio Value="@("Admin")" />
-
-                        <span class="role-option-content">
-                            <strong>مدير نظام</strong>
-
-                            <small>
-                                صلاحيات كاملة، بما فيها إنشاء المستخدمين.
-                            </small>
-                        </span>
-                    </label>
+                                <span class="role-option-content">
+                                    <strong>@AppRoles.GetDisplayName(role)</strong>
+                                    <small>@GetRoleDescription(role)</small>
+                                </span>
+                            </label>
+                        }
                     </div>
                 </InputRadioGroup>
-                <ValidationMessage For="() => Input.Role" />
+
+                <ValidationMessage For="() => Input.Role" />                <ValidationMessage For="() => Input.Role" />
             </div>
             <div class="security-note">
                 <strong>تنبيه أمني</strong>
@@ -191,6 +166,19 @@
     {
         identityErrors = [];
         successMessage = null;
+        if (!AppRoles.All.Contains(Input.Role))
+        {
+            identityErrors =
+            [
+                new IdentityError
+        {
+            Code = "InvalidRole",
+            Description = "صلاحية المستخدم غير صحيحة."
+        }
+            ];
+
+            return;
+        }
         isSaving = true;
 
         try
@@ -239,14 +227,17 @@
     {
         return role switch
         {
-            "Admin" =>
-                "يمتلك صلاحية كاملة، بما فيها إنشاء المستخدمين.",
+            AppRoles.Admin =>
+                "صلاحيات كاملة لجميع الأقسام وإدارة المستخدمين.",
 
-            "Staff" =>
-                "يمكنه إدارة الكفلاء والمكفولين والكفالات والإدخالات المالية.",
+            AppRoles.Staff =>
+                "إدارة الكفلاء والمكفولين والكفالات والمعرّفين والإدخالات المالية والتقارير.",
 
-            "Viewer" =>
-                "يمكنه مشاهدة التقارير فقط دون تعديل البيانات.",
+            AppRoles.ApplicationsStaff =>
+                "مراجعة الطلبات وأرشيفها والموافقة والرفض، والوصول إلى التقارير.",
+
+            AppRoles.Viewer =>
+                "عرض التقارير وطباعتها وتصديرها دون تعديل البيانات.",
 
             _ =>
                 "حدد الصلاحية المناسبة لمهام المستخدم."
@@ -255,13 +246,7 @@
 
     private static string GetRoleArabicName(string role)
     {
-        return role switch
-        {
-            "Admin" => "مدير نظام",
-            "Staff" => "موظف",
-            "Viewer" => "مشاهدة فقط",
-            _ => role
-        };
+        return AppRoles.GetDisplayName(role);
     }
 
     private static string TranslateIdentityError(
@@ -320,7 +305,7 @@
 
         [Required(ErrorMessage = "يجب اختيار صلاحية المستخدم.")]
         [RegularExpression(
-            "^(Admin|Staff|Viewer)$",
+            "^(Admin|Staff|ApplicationsStaff|Viewer)$",
             ErrorMessage = "صلاحية المستخدم غير صحيحة.")]
         public string Role { get; set; } = string.Empty;
     }

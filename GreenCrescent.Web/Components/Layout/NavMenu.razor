@@ -18,23 +18,20 @@
     <nav class="nav-menu">
         <AuthorizeView Context="mainAuthorization">
             <Authorized>
-                
-
-                @* صفحات المشاهدة متاحة لجميع المستخدمين *@
+                <NavLink class="nav-link"
+                         href=""
+                         Match="NavLinkMatch.All">
+                    <span class="nav-symbol">⌂</span>
+                    <span>لوحة التحكم</span>
+                </NavLink>
                 <AuthorizeView Roles="Admin,Staff"
                                Context="managementAuthorization">
-
                     <Authorized>
-                        <NavLink class="nav-link"
-                                 href=""
-                                 Match="NavLinkMatch.All">
-                            <span class="nav-symbol">⌂</span>
-                            <span>لوحة التحكم</span>
-                        </NavLink>
-
+                        
                         <div class="nav-section-title">
                             إدارة الكفالات
                         </div>
+
                         <NavLink class="nav-link" href="sponsors">
                             <span class="nav-symbol">ك</span>
                             <span>الكفلاء</span>
@@ -55,46 +52,44 @@
                             <span>إجراءات الكفالات</span>
                         </NavLink>
 
-                        <AuthorizeView Roles="Admin,Staff"
-                                       Context="orphanReviewAuthorization">
-                            <Authorized>
-                                <NavLink class="nav-link" href="orphan-applications">
-                                    <span class="nav-symbol">ط</span>
-                                    <span>طلبات الأيتام</span>
-                                </NavLink>
-                            </Authorized>
-                        </AuthorizeView>
-
                         <NavLink class="nav-link" href="responsible-sheikhs">
                             <span class="nav-symbol">ع</span>
                             <span>المعرّفون</span>
                         </NavLink>
 
+                        <div class="nav-section-title">
+                            الإدارة المالية
+                        </div>
 
-                    </Authorized>
-                </AuthorizeView>
-
-
-                <div class="nav-section-title">
-                    الإدارة المالية
-                </div>
-
-                <AuthorizeView Roles="Admin,Staff"
-                               Context="financialAuthorization">
-                    <Authorized>
-                        <NavLink class="nav-link"
-                                 href="financial-entry">
+                        <NavLink class="nav-link" href="financial-entry">
                             <span class="nav-symbol">د</span>
                             <span>إدخال مالي</span>
                         </NavLink>
                     </Authorized>
                 </AuthorizeView>
 
-                <AuthorizeView Roles="Admin,Staff,Viewer"
+                <AuthorizeView Roles="Admin,ApplicationsStaff"
+                               Context="applicationsAuthorization">
+                    <Authorized>
+                        <div class="nav-section-title">
+                            إدارة الطلبات
+                        </div>
+
+                        <NavLink class="nav-link" href="orphan-applications">
+                            <span class="nav-symbol">ط</span>
+                            <span>طلبات الأيتام</span>
+                        </NavLink>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="Admin,Staff,ApplicationsStaff,Viewer"
                                Context="reportsAuthorization">
                     <Authorized>
-                        <NavLink class="nav-link"
-                                 href="reports">
+                        <div class="nav-section-title">
+                            السجلات والتقارير
+                        </div>
+
+                        <NavLink class="nav-link" href="reports">
                             <span class="nav-symbol">ت</span>
                             <span>التقارير</span>
                         </NavLink>
@@ -105,8 +100,7 @@
                     الحساب
                 </div>
 
-                <NavLink class="nav-link"
-                         href="Account/Manage">
+                <NavLink class="nav-link" href="Account/Manage">
                     <span class="nav-symbol">ح</span>
                     <span>إعدادات الحساب</span>
                 </NavLink>
@@ -114,27 +108,28 @@
                 <AuthorizeView Roles="Admin"
                                Context="adminAuthorization">
                     <Authorized>
-                        <NavLink class="nav-link"
-                                 href="users">
+                        <NavLink class="nav-link" href="users">
                             <span class="nav-symbol">إ.م</span>
                             <span>إدارة المستخدمين</span>
                         </NavLink>
-                        <NavLink class="nav-link"
-                                 href="Account/Register">
+
+                        <NavLink class="nav-link" href="Account/Register">
                             <span class="nav-symbol">+</span>
                             <span>إضافة مستخدم</span>
-                        </NavLink>               
+                        </NavLink>
                     </Authorized>
                 </AuthorizeView>
 
                 <form action="Account/Logout"
                       method="post"
-                      class="logout-form">
+                      class="logout-form"
+                      data-enhance="false">
+
                     <AntiforgeryToken />
 
                     <input type="hidden"
                            name="ReturnUrl"
-                           value="@currentUrl" />
+                           value="Account/Login" />
 
                     <button type="submit"
                             class="nav-link logout-link">
@@ -145,8 +140,7 @@
             </Authorized>
 
             <NotAuthorized>
-                <NavLink class="nav-link"
-                         href="Account/Login">
+                <NavLink class="nav-link" href="Account/Login">
                     <span class="nav-symbol">د</span>
                     <span>تسجيل الدخول</span>
                 </NavLink>
@@ -160,28 +154,24 @@
 
     protected override void OnInitialized()
     {
-        currentUrl =
-            NavigationManager.ToBaseRelativePath(
-                NavigationManager.Uri);
+        currentUrl = NavigationManager.ToBaseRelativePath(
+            NavigationManager.Uri);
 
-        NavigationManager.LocationChanged +=
-            OnLocationChanged;
+        NavigationManager.LocationChanged += OnLocationChanged;
     }
 
     private void OnLocationChanged(
         object? sender,
         LocationChangedEventArgs eventArgs)
     {
-        currentUrl =
-            NavigationManager.ToBaseRelativePath(
-                eventArgs.Location);
+        currentUrl = NavigationManager.ToBaseRelativePath(
+            eventArgs.Location);
 
-        StateHasChanged();
+        _ = InvokeAsync(StateHasChanged);
     }
 
     public void Dispose()
     {
-        NavigationManager.LocationChanged -=
-            OnLocationChanged;
+        NavigationManager.LocationChanged -= OnLocationChanged;
     }
 }
