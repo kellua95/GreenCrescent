@@ -242,43 +242,44 @@ public sealed class ReportService(
         }
 
         var rows = await query
-            .OrderBy(item => item.FileNumber)
-            .Select(item => new BeneficiaryDto(
-                item.Id,
-                item.FileNumber,
-                item.Name,
-                item.PhoneNumber,
-                item.DateOfBirth,
-                item.Status,
-                item.IsArchived,
-                item.ArchiveReason,
-                item.Notes,
+    .OrderBy(item => item.FileNumber)
+    .ThenBy(item => item.Id)
+    .Select(item => new BeneficiaryDto(
+        item.Id,
+        item.FileNumber,
+        item.Name,
+        item.PhoneNumber,
+        item.DateOfBirth,
+        item.Status,
+        item.IsArchived,
+        item.ArchiveReason,
+        item.Notes,
 
-                item.Sponsorships
-                    .Where(sponsorship =>
-                        sponsorship.Status ==
-                        SponsorshipStatus.Active)
-                    .OrderBy(sponsorship =>
-                        sponsorship.Id)
-                    .Select(sponsorship =>
-                        (int?)sponsorship.Id)
-                    .FirstOrDefault(),
+        item.Sponsorships
+            .Where(sponsorship =>
+                sponsorship.Status == SponsorshipStatus.Active)
+            .OrderBy(sponsorship => sponsorship.Id)
+            .Select(sponsorship => (int?)sponsorship.Id)
+            .FirstOrDefault(),
 
-                item.Sponsorships
-                    .Where(sponsorship =>
-                        sponsorship.Status ==
-                        SponsorshipStatus.Active)
-                    .OrderBy(sponsorship =>
-                        sponsorship.Id)
-                    .Select(sponsorship =>
-                        sponsorship.Sponsor.Name)
-                    .FirstOrDefault(),
+        item.Sponsorships
+            .Where(sponsorship =>
+                sponsorship.Status == SponsorshipStatus.Active)
+            .OrderBy(sponsorship => sponsorship.Id)
+            .Select(sponsorship => sponsorship.Sponsor.Name)
+            .FirstOrDefault(),
 
-                item.Sponsorships.Count(sponsorship =>
-                    sponsorship.Status ==
-                    SponsorshipStatus.Active))
-            )
-            .ToListAsync(cancellationToken);
+        item.Sponsorships.Count(sponsorship =>
+            sponsorship.Status == SponsorshipStatus.Active))
+    {
+        NationalNumber = item.NationalNumber,
+        GuardianName = item.GuardianName,
+        GuardianNationalNumber = item.GuardianNationalNumber,
+        GuardianPhoneNumber = item.GuardianPhoneNumber,
+        FamilyMembersCount = item.FamilyMembersCount,
+        TotalMonthlyIncome = item.TotalMonthlyIncome
+    })
+    .ToListAsync(cancellationToken);
         // نستخدم جميع الكفالات الفعالة، وليس نتائج البحث أو الصفحة فقط.
         var guardianNumbers = rows
             .Select(item => item.GuardianNationalNumber?.Trim())
