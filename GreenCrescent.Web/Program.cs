@@ -127,6 +127,10 @@ builder.Services.AddScoped<
 
 builder.Services.AddHealthChecks();
 
+builder.Services.AddScoped<
+    Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+        .ProtectedSessionStorage>();
+
 var app = builder.Build();
 
 app.UseForwardedHeaders();

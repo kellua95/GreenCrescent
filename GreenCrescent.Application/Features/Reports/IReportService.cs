@@ -22,19 +22,24 @@ public interface IReportService
             DateOnly selectedDate,
             CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<string>> GetFinancialBookNumbersAsync(
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<FinancialEntryDto>>
         GetFinancialEntriesAsync(
             DateOnly? fromDate,
             DateOnly? toDate,
             string? searchTerm,
-            CancellationToken cancellationToken = default);
+            CancellationToken cancellationToken = default,
+            string? bookNumber = null);
 
     Task<IReadOnlyList<FinancialEntryDto>>
         GetDonationsAsync(
             DateOnly? fromDate,
             DateOnly? toDate,
             string? searchTerm,
-            CancellationToken cancellationToken = default);
+            CancellationToken cancellationToken = default,
+            string? bookNumber = null);
 
     Task<IReadOnlyList<SponsorDto>>
     GetSponsorsAsync(

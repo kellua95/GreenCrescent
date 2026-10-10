@@ -16,6 +16,9 @@ namespace GreenCrescent.Infrastructure.Identity
 
         public DbSet<Beneficiary> Beneficiaries => Set<Beneficiary>();
 
+        public DbSet<FinancialEntryRevision> FinancialEntryRevisions =>
+            Set<FinancialEntryRevision>();
+
         public DbSet<Sponsorship> Sponsorships => Set<Sponsorship>();
 
         public DbSet<FinancialEntry> FinancialEntries => Set<FinancialEntry>();

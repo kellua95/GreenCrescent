@@ -368,16 +368,41 @@ public sealed class ReportService(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<string>>
+    GetFinancialBookNumbersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.FinancialEntries
+            .AsNoTracking()
+            .Where(item =>
+                item.BookNumber != null &&
+                item.BookNumber.Trim() != "")
+            .Select(item => item.BookNumber!.Trim())
+            .Distinct()
+            .OrderBy(number => number)
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<FinancialEntryDto>>
-        GetFinancialEntriesAsync(
-            DateOnly? fromDate,
-            DateOnly? toDate,
-            string? searchTerm,
-            CancellationToken cancellationToken = default)
+    GetFinancialEntriesAsync(
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        string? searchTerm,
+        CancellationToken cancellationToken = default,
+        string? bookNumber = null)
     {
         var query = dbContext.FinancialEntries
             .AsNoTracking()
             .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(bookNumber))
+        {
+            var selectedBook = bookNumber.Trim();
+
+            query = query.Where(item =>
+                item.BookNumber != null &&
+                item.BookNumber.Trim() == selectedBook);
+        }
 
         query = ApplyFinancialFilters(
             query,
@@ -390,18 +415,31 @@ public sealed class ReportService(
     }
 
     public async Task<IReadOnlyList<FinancialEntryDto>>
-        GetDonationsAsync(
-            DateOnly? fromDate,
-            DateOnly? toDate,
-            string? searchTerm,
-            CancellationToken cancellationToken = default)
+    GetDonationsAsync(
+        DateOnly? fromDate,
+        DateOnly? toDate,
+        string? searchTerm,
+        CancellationToken cancellationToken = default,
+        string? bookNumber = null)
     {
         var query = dbContext.FinancialEntries
             .AsNoTracking()
             .Where(item =>
-                item.EntryType == FinancialEntryType.Zakat ||
-                item.EntryType == FinancialEntryType.Charity ||
-                item.EntryType == FinancialEntryType.Other);
+                item.Status != FinancialEntryStatus.Cancelled &&
+                (
+                    item.EntryType == FinancialEntryType.Zakat ||
+                    item.EntryType == FinancialEntryType.Charity ||
+                    item.EntryType == FinancialEntryType.Other
+                ));
+
+        if (!string.IsNullOrWhiteSpace(bookNumber))
+        {
+            var selectedBook = bookNumber.Trim();
+
+            query = query.Where(item =>
+                item.BookNumber != null &&
+                item.BookNumber.Trim() == selectedBook);
+        }
 
         query = ApplyFinancialFilters(
             query,
@@ -485,8 +523,8 @@ public sealed class ReportService(
     }
 
     private static IQueryable<FinancialEntryDto>
-        ProjectFinancialEntries(
-            IQueryable<Core.Entities.FinancialEntry> query)
+    ProjectFinancialEntries(
+        IQueryable<Core.Entities.FinancialEntry> query)
     {
         return query
             .OrderByDescending(item => item.EntryDate)
@@ -502,7 +540,10 @@ public sealed class ReportService(
                 item.ReceiptNumber,
                 item.EntryDate,
                 item.Status,
-                item.Notes));
+                item.Notes)
+            {
+                RevisionNumber = item.RevisionNumber
+            });
     }
 
     private static IReadOnlyList<string>

@@ -14,10 +14,24 @@ namespace GreenCrescent.Infrastructure.Persistence.Configurations
                 {
                     table.HasCheckConstraint(
                         "CK_FinancialEntry_Amount",
-                        "\"Amount\" > 0");
+                        """
+                        (
+                            "Status" IN (1, 2)
+                            AND "Amount" > 0
+                        )
+                        OR
+                        (
+                            "Status" = 3
+                            AND "Amount" = 0
+                        )
+                        """);
                 });
 
             builder.HasKey(x => x.Id);
+
+            builder.Property(item => item.RevisionNumber)
+                .HasDefaultValue(0)
+                .IsConcurrencyToken();
 
             builder.Property(x => x.DonorName)
                 .HasMaxLength(200)

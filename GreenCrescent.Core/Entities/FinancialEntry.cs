@@ -32,6 +32,8 @@ namespace GreenCrescent.Core.Entities
 
         public string? ReversalReason { get; set; }
 
+        public int RevisionNumber { get; set; }
+
         public ICollection<PaymentAllocation> Allocations { get; set; } =
             new List<PaymentAllocation>();
 

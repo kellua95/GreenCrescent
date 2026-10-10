@@ -1,0 +1,644 @@
+﻿@page "/financial-entry/edit/{Id:int}"
+@rendermode InteractiveServer
+
+@using System.ComponentModel.DataAnnotations
+@using GreenCrescent.Application.Features.FinancialEntries
+@using GreenCrescent.Application.Features.Sponsors
+@using GreenCrescent.Core.Enums
+@using Microsoft.AspNetCore.Authorization
+
+@attribute [Authorize(Roles = "Admin,Staff")]
+
+@inject IFinancialEntryService FinancialEntryService
+@inject ISponsorService SponsorService
+@inject ILogger<FinancialEntryEdit> Logger
+@inject NavigationManager Navigation
+
+<PageTitle>تعديل حركة مالية</PageTitle>
+
+<div class="financial-edit-page" dir="rtl">
+    <header class="edit-header">
+        <div>
+            <h1>تعديل حركة مالية</h1>
+            <p>الحركة رقم @Id</p>
+        </div>
+
+        <a href="/financial-entry" class="secondary-button">
+            العودة للإدخال المالي
+        </a>
+    </header>
+
+    @if (message is not null)
+    {
+        <div class="notice success">@message</div>
+    }
+
+    @if (errorMessage is not null)
+    {
+        <div class="notice error" role="alert">
+            @errorMessage
+        </div>
+    }
+
+    @if (reloadRequired)
+    {
+        <div class="notice">
+            <p>
+                أعد تحميل الحركة لمعرفة آخر بيانات محفوظة
+                قبل إجراء محاولة أخرى.
+            </p>
+
+            <button type="button"
+                    class="secondary-button"
+                    disabled="@IsBusy"
+                    @onclick="ReloadAsync">
+                إعادة تحميل الحركة
+            </button>
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <p>جاري تحميل الحركة...</p>
+    }
+    else if (form is not null)
+    {
+        <section class="edit-card">
+            <p class="revision-label">
+                نسخة الحركة الحالية: @form.RevisionNumber
+            </p>
+
+            <EditForm Model="@form"
+                      OnValidSubmit="SaveAsync"
+                      FormName="EditFinancialEntry">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <fieldset disabled="@(IsBusy || reloadRequired)">
+                    <label class="checkbox-field">
+                        <InputCheckbox @bind-Value="form.IsCancelledReceipt"
+                                       @bind-Value:after="CancelledChanged" />
+                        وصل ملغي
+                    </label>
+
+                    @if (form.IsCancelledReceipt)
+                    {
+                        <div class="notice">
+                            قيمة الوصل الملغي صفر.
+                            إذا كانت الحركة الأصلية دفعة كفالة،
+                            ستتحقق الخدمة من إمكانية إلغاء أثرها.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="field">
+                            <label>نوع الإدخال</label>
+
+                            <InputSelect @bind-Value="form.EntryType">
+                                @foreach (var type in Enum.GetValues<FinancialEntryType>())
+                                {
+                                    <option value="@type">
+                                        @GetEntryTypeName(type)
+                                    </option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        @if (IsSponsorshipPayment)
+                        {
+                            <div class="field">
+                                <label>البحث عن الكافل</label>
+
+                                <div class="search-line">
+                                    <InputText @bind-Value="sponsorSearch"
+                                               placeholder="اسم الكافل أو رقم الهاتف" />
+
+                                    <button type="button"
+                                            class="secondary-button"
+                                            @onclick="SearchSponsorsAsync">
+                                        بحث
+                                    </button>
+                                </div>
+
+                                @if (sponsorSearchMessage is not null)
+                                {
+                                    <small>@sponsorSearchMessage</small>
+                                }
+
+                                @if (sponsorResults.Count > 0)
+                                {
+                                    <div class="search-results">
+                                        @foreach (var sponsor in sponsorResults)
+                                        {
+                                            <button type="button"
+                                                    @onclick="() => SelectSponsor(sponsor)">
+                                                <strong>@sponsor.Name</strong>
+                                                <span>
+                                                    @(sponsor.PhoneNumber ?? "دون هاتف")
+                                                </span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <div class="notice">
+                                الكافل المختار:
+                                <strong>
+                                    @(form.SponsorId.HasValue
+                                        ? selectedSponsorName
+                                        : "لم يتم اختيار كافل")
+                                </strong>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="field">
+                                <label>اسم المتبرع</label>
+                                <InputText @bind-Value="form.DonorName"
+                                           maxlength="200" />
+                                <ValidationMessage For="() => form.DonorName" />
+                            </div>
+                        }
+
+                        <div class="two-columns">
+                            <div class="field">
+                                <label>المبلغ بالدينار</label>
+                                <InputNumber @bind-Value="form.Amount"
+                                             step="0.001"
+                                             min="0.001" />
+                                <ValidationMessage For="() => form.Amount" />
+                            </div>
+
+                            <div class="field">
+                                <label>طريقة الدفع</label>
+                                <InputSelect @bind-Value="form.PaymentMethod">
+                                    @foreach (var method in Enum.GetValues<PaymentMethod>())
+                                    {
+                                        <option value="@method">
+                                            @GetPaymentMethodName(method)
+                                        </option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="two-columns">
+                        <div class="field">
+                            <label>رقم الدفتر</label>
+                            <InputText @bind-Value="form.BookNumber"
+                                       maxlength="50" />
+                            <ValidationMessage For="() => form.BookNumber" />
+                        </div>
+
+                        <div class="field">
+                            <label>رقم الوصل</label>
+                            <InputText @bind-Value="form.ReceiptNumber"
+                                       maxlength="50" />
+                            <ValidationMessage For="() => form.ReceiptNumber" />
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label>تاريخ الحركة</label>
+                        <InputDate @bind-Value="form.EntryDate" />
+                    </div>
+
+                    <div class="field">
+                        <label>
+                            @(form.IsCancelledReceipt
+                                ? "سبب إلغاء الوصل"
+                                : "ملاحظات الحركة")
+                        </label>
+
+                        <InputTextArea @bind-Value="form.Notes"
+                                       maxlength="1000" />
+
+                        <ValidationMessage For="() => form.Notes" />
+                    </div>
+
+                    <div class="field">
+                        <label>سبب التعديل *</label>
+
+                        <InputTextArea @bind-Value="form.ChangeReason"
+                                       maxlength="1000"
+                                       placeholder="مثال: تصحيح المبلغ من 100 إلى 150 حسب الوصل الورقي" />
+
+                        <ValidationMessage For="() => form.ChangeReason" />
+                    </div>
+
+                    <div class="notice">
+                        قد يغيّر تعديل المبلغ أو النوع أو الكافل
+                        الرصيد ومدد الكفالات. سيُحفظ سبب التعديل
+                        والبيانات السابقة في سجل الحركة.
+                    </div>
+
+                    <button type="submit" class="save-button">
+                        @(isSaving
+                            ? "جاري حفظ التعديل..."
+                            : "حفظ التعديل")
+                    </button>
+                </fieldset>
+            </EditForm>
+        </section>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    private EditModel? form;
+    private string sponsorSearch = string.Empty;
+    private string selectedSponsorName = string.Empty;
+
+    private IReadOnlyList<SponsorDto> sponsorResults = [];
+
+    private string? sponsorSearchMessage;
+    private string? message;
+    private string? errorMessage;
+
+    private bool isLoading;
+    private bool isSaving;
+    private bool isSearching;
+    private bool reloadRequired;
+
+    private readonly SemaphoreSlim operationGate = new(1, 1);
+
+    private bool IsBusy =>
+        isLoading || isSaving || isSearching;
+
+    private bool IsSponsorshipPayment =>
+        form is not null &&
+        !form.IsCancelledReceipt &&
+        (form.EntryType is
+            FinancialEntryType.OrphanSponsorship or
+            FinancialEntryType.SponsorshipDeliveredByHand);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task<T> RunAsync<T>(Func<Task<T>> operation)
+    {
+        await operationGate.WaitAsync();
+
+        try
+        {
+            return await operation();
+        }
+        finally
+        {
+            operationGate.Release();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+        message = null;
+        sponsorResults = [];
+        sponsorSearchMessage = null;
+
+        var requestedId = Id;
+
+        try
+        {
+            var entry = await RunAsync(
+                () => FinancialEntryService.GetByIdAsync(requestedId));
+
+            if (entry is null)
+            {
+                form = null;
+                errorMessage = "الحركة المالية غير موجودة.";
+                return;
+            }
+
+            if (entry.Status == FinancialEntryStatus.Reversed)
+            {
+                form = null;
+                errorMessage =
+                    "هذه الحركة معكوسة سابقًا، ولا يمكن تعديلها من هذه الصفحة.";
+                return;
+            }
+
+            SetForm(entry);
+            reloadRequired = false;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "Could not load financial entry {EntryId}.",
+                requestedId);
+
+            form = null;
+            reloadRequired = true;
+            errorMessage = "تعذر تحميل الحركة. حاول مجددًا.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetForm(FinancialEntryDto entry)
+    {
+        form = new EditModel
+        {
+            Id = entry.Id,
+            RevisionNumber = entry.RevisionNumber,
+            SponsorId = entry.SponsorId,
+            DonorName = entry.DonorName,
+            EntryType = entry.EntryType,
+            Amount = entry.Amount,
+            PaymentMethod = entry.PaymentMethod,
+            BookNumber = entry.BookNumber ?? string.Empty,
+            ReceiptNumber = entry.ReceiptNumber ?? string.Empty,
+            EntryDate = entry.EntryDate,
+            Notes = entry.Notes,
+            IsCancelledReceipt =
+                entry.Status == FinancialEntryStatus.Cancelled
+        };
+
+        selectedSponsorName = entry.SponsorId.HasValue
+            ? entry.DonorName
+            : string.Empty;
+
+        sponsorSearch = string.Empty;
+        sponsorResults = [];
+        sponsorSearchMessage = null;
+    }
+
+    private void CancelledChanged()
+    {
+        if (form is null)
+        {
+            return;
+        }
+
+        if (form.IsCancelledReceipt)
+        {
+            form.Amount = 0m;
+        }
+
+        sponsorResults = [];
+        sponsorSearchMessage = null;
+    }
+
+    private async Task SearchSponsorsAsync()
+    {
+        if (IsBusy || reloadRequired || !IsSponsorshipPayment)
+        {
+            return;
+        }
+
+        var term = sponsorSearch.Trim();
+
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            sponsorSearchMessage = "اكتب اسم الكافل أو رقم هاتفه.";
+            return;
+        }
+
+        isSearching = true;
+        sponsorResults = [];
+        sponsorSearchMessage = null;
+
+        try
+        {
+            sponsorResults = await RunAsync(
+                () => SponsorService.SearchAsync(term));
+
+            if (sponsorResults.Count == 0)
+            {
+                sponsorSearchMessage = "لا توجد نتائج.";
+            }
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Sponsor search failed.");
+            sponsorSearchMessage = "تعذر البحث عن الكافل.";
+        }
+        finally
+        {
+            isSearching = false;
+        }
+    }
+
+    private void SelectSponsor(SponsorDto sponsor)
+    {
+        if (form is null || IsBusy || reloadRequired)
+        {
+            return;
+        }
+
+        form.SponsorId = sponsor.Id;
+        selectedSponsorName = sponsor.Name;
+        sponsorSearch = sponsor.Name;
+        sponsorResults = [];
+        sponsorSearchMessage = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (form is null || IsBusy || reloadRequired)
+        {
+            return;
+        }
+
+        message = null;
+        errorMessage = null;
+
+        if (IsSponsorshipPayment && !form.SponsorId.HasValue)
+        {
+            errorMessage = "اختر الكافل من نتائج البحث.";
+            return;
+        }
+
+        var request = new UpdateFinancialEntryRequest(
+            form.Id,
+            form.RevisionNumber,
+            IsSponsorshipPayment ? form.SponsorId : null,
+            form.DonorName,
+            form.EntryType,
+            form.Amount,
+            form.PaymentMethod,
+            form.BookNumber,
+            form.ReceiptNumber,
+            form.EntryDate,
+            form.Notes,
+            form.IsCancelledReceipt,
+            form.ChangeReason);
+
+        isSaving = true;
+
+        var saved = false;
+
+        try
+        {
+            await RunAsync(async () =>
+            {
+                await FinancialEntryService.UpdateAsync(request);
+                return true;
+            });
+
+            saved = true;
+
+            Navigation.NavigateTo("/financial-entry");
+        }
+        catch (InvalidOperationException exception)
+        {
+            Logger.LogWarning(
+                exception,
+                "Financial entry update could not complete normally.");
+
+            reloadRequired = true;
+
+            errorMessage = saved
+                ? "تم حفظ التعديل، لكن تعذر إعادة تحميل الحركة."
+                : exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(
+                exception,
+                "Failed to update financial entry {EntryId}.",
+                request.Id);
+
+            reloadRequired = true;
+
+            errorMessage = saved
+                ? "تم حفظ التعديل، لكن تعذر إعادة تحميل الحركة."
+                : "تعذر تأكيد نتيجة التعديل. أعد تحميل الحركة " +
+                  "وراجع بياناتها ورقم نسختها قبل محاولة الحفظ مجددًا.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string GetEntryTypeName(
+        FinancialEntryType type) => type switch
+        {
+            FinancialEntryType.NewOrphan => "يتيم جديد",
+            FinancialEntryType.Zakat => "زكاة",
+            FinancialEntryType.Charity => "صدقة",
+            FinancialEntryType.Other => "أخرى",
+            FinancialEntryType.OrphanSponsorship => "كفالة يتيم",
+            FinancialEntryType.SponsorshipDeliveredByHand =>
+                "كفالة سُلّمت باليد",
+            _ => type.ToString()
+        };
+
+    private static string GetPaymentMethodName(
+        PaymentMethod method) => method switch
+        {
+            PaymentMethod.Cash => "نقدي",
+            PaymentMethod.Clearing => "مقاصة",
+            PaymentMethod.ByHand => "باليد",
+            PaymentMethod.BankTransfer => "تحويل بنكي",
+            _ => method.ToString()
+        };
+
+    private sealed class EditModel : IValidatableObject
+    {
+        public int Id { get; set; }
+
+        public int RevisionNumber { get; set; }
+
+        public int? SponsorId { get; set; }
+
+        [StringLength(200)]
+        public string? DonorName { get; set; }
+
+        public FinancialEntryType EntryType { get; set; }
+
+        public decimal Amount { get; set; }
+
+        public PaymentMethod PaymentMethod { get; set; }
+
+        [Required(ErrorMessage = "رقم الدفتر مطلوب.")]
+        [StringLength(50)]
+        public string BookNumber { get; set; } = string.Empty;
+
+        [Required(ErrorMessage = "رقم الوصل مطلوب.")]
+        [StringLength(50)]
+        public string ReceiptNumber { get; set; } = string.Empty;
+
+        public DateOnly EntryDate { get; set; }
+
+        [StringLength(1000)]
+        public string? Notes { get; set; }
+
+        public bool IsCancelledReceipt { get; set; }
+
+        [Required(ErrorMessage = "سبب التعديل مطلوب.")]
+        [StringLength(1000)]
+        public string ChangeReason { get; set; } = string.Empty;
+
+        public IEnumerable<ValidationResult> Validate(
+            ValidationContext validationContext)
+        {
+            if (EntryDate == DateOnly.MinValue)
+            {
+                yield return new ValidationResult(
+                    "تاريخ الحركة مطلوب.",
+                    [nameof(EntryDate)]);
+            }
+
+            if (IsCancelledReceipt)
+            {
+                if (Amount != 0m)
+                {
+                    yield return new ValidationResult(
+                        "قيمة الوصل الملغي يجب أن تكون صفرًا.",
+                        [nameof(Amount)]);
+                }
+
+                if (string.IsNullOrWhiteSpace(Notes))
+                {
+                    yield return new ValidationResult(
+                        "سبب إلغاء الوصل مطلوب.",
+                        [nameof(Notes)]);
+                }
+
+                yield break;
+            }
+
+            if (Amount < 0.001m || Amount > 999999999999m)
+            {
+                yield return new ValidationResult(
+                    "المبلغ يجب أن يكون بين 0.001 و999999999999.",
+                    [nameof(Amount)]);
+            }
+            else if (decimal.Round(Amount, 3) != Amount)
+            {
+                yield return new ValidationResult(
+                    "المبلغ يجب ألا يتجاوز ثلاث منازل عشرية.",
+                    [nameof(Amount)]);
+            }
+
+            var sponsorshipPayment = EntryType is
+                FinancialEntryType.OrphanSponsorship or
+                FinancialEntryType.SponsorshipDeliveredByHand;
+
+            if (!sponsorshipPayment &&
+                string.IsNullOrWhiteSpace(DonorName))
+            {
+                yield return new ValidationResult(
+                    "اسم المتبرع مطلوب.",
+                    [nameof(DonorName)]);
+            }
+        }
+    }
+}

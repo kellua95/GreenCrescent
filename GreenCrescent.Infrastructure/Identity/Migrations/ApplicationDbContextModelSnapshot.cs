@@ -187,6 +187,12 @@ namespace GreenCrescent.Infrastructure.Identity.Migrations
                     b.Property<DateTime?>("ReversedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("RevisionNumber")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<int?>("SponsorId")
                         .HasColumnType("integer");
 
@@ -213,8 +219,50 @@ namespace GreenCrescent.Infrastructure.Identity.Migrations
 
                     b.ToTable("FinancialEntries", null, t =>
                         {
-                            t.HasCheckConstraint("CK_FinancialEntry_Amount", "\"Amount\" > 0");
+                            t.HasCheckConstraint("CK_FinancialEntry_Amount", "(\r\n    \"Status\" IN (1, 2)\r\n    AND \"Amount\" > 0\r\n)\r\nOR\r\n(\r\n    \"Status\" = 3\r\n    AND \"Amount\" = 0\r\n)");
                         });
+                });
+
+            modelBuilder.Entity("GreenCrescent.Core.Entities.FinancialEntryRevision", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("FinancialEntryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PerformedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FinancialEntryId", "CreatedAtUtc");
+
+                    b.ToTable("FinancialEntryRevisions", (string)null);
                 });
 
             modelBuilder.Entity("GreenCrescent.Core.Entities.OrphanApplication", b =>
@@ -1088,6 +1136,17 @@ namespace GreenCrescent.Infrastructure.Identity.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Sponsor");
+                });
+
+            modelBuilder.Entity("GreenCrescent.Core.Entities.FinancialEntryRevision", b =>
+                {
+                    b.HasOne("GreenCrescent.Core.Entities.FinancialEntry", "FinancialEntry")
+                        .WithMany()
+                        .HasForeignKey("FinancialEntryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("FinancialEntry");
                 });
 
             modelBuilder.Entity("GreenCrescent.Core.Entities.OrphanApplication", b =>

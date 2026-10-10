@@ -13,4 +13,7 @@ public sealed record FinancialEntryDto(
     string? ReceiptNumber,
     DateOnly EntryDate,
     FinancialEntryStatus Status,
-    string? Notes);
+    string? Notes)
+{
+    public int RevisionNumber { get; init; }
+}

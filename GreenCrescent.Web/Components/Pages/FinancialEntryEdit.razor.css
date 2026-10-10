@@ -1,0 +1,193 @@
+﻿.financial-edit-page {
+    max-width: 1050px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    color: #243b2e;
+}
+
+.edit-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+    .edit-header h1 {
+        margin: 0 0 .4rem;
+    }
+
+    .edit-header p,
+    .revision-label {
+        color: #66746c;
+    }
+
+.edit-card {
+    padding: 1.5rem;
+    background: white;
+    border: 1px solid #dce7df;
+    border-radius: 16px;
+}
+
+fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    margin-bottom: 1rem;
+}
+
+    .field > label {
+        font-weight: 700;
+    }
+
+    .field ::deep input,
+    .field ::deep select,
+    .field ::deep textarea {
+        width: 100%;
+        box-sizing: border-box;
+        padding: .75rem;
+        color: #243b2e;
+        background: white;
+        border: 1px solid #cbd9cf;
+        border-radius: 9px;
+        font: inherit;
+    }
+
+    .field ::deep textarea {
+        min-height: 90px;
+        resize: vertical;
+    }
+
+        .field ::deep input:focus,
+        .field ::deep select:focus,
+        .field ::deep textarea:focus {
+            outline: 2px solid #b9dfc8;
+            border-color: #08783e;
+        }
+
+.two-columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.checkbox-field {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin-bottom: 1rem;
+    font-weight: 700;
+}
+
+.search-line {
+    display: flex;
+    gap: .6rem;
+}
+
+    .search-line ::deep input {
+        flex: 1;
+        min-width: 0;
+    }
+
+.search-results {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+}
+
+    .search-results button {
+        display: flex;
+        justify-content: space-between;
+        gap: .6rem;
+        padding: .75rem;
+        color: #243b2e;
+        text-align: right;
+        background: #f6faf7;
+        border: 1px solid #dce7df;
+        border-radius: 8px;
+        font: inherit;
+        cursor: pointer;
+    }
+
+        .search-results button:hover {
+            background: #e5f5eb;
+            border-color: #08783e;
+        }
+
+.notice {
+    padding: .9rem;
+    margin-bottom: 1rem;
+    background: #f3f7f4;
+    border: 1px solid #dce7df;
+    border-radius: 10px;
+    line-height: 1.8;
+}
+
+    .notice.success {
+        color: #086534;
+        background: #e8f7ee;
+    }
+
+    .notice.error {
+        color: #9b241a;
+        background: #fff0ef;
+        border-color: #efc4bf;
+    }
+
+.save-button,
+.secondary-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: .7rem 1rem;
+    border: 1px solid #08783e;
+    border-radius: 9px;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.save-button {
+    color: white;
+    background: #08783e;
+}
+
+.secondary-button {
+    color: #08783e;
+    background: white;
+}
+
+fieldset:disabled .save-button,
+button:disabled {
+    opacity: .6;
+    cursor: wait;
+}
+
+::deep .validation-message,
+::deep .validation-errors {
+    color: #a52a20;
+}
+
+@media (max-width: 650px) {
+    .financial-edit-page {
+        padding: 1rem;
+    }
+
+    .edit-header,
+    .search-line {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .two-columns {
+        grid-template-columns: 1fr;
+    }
+}

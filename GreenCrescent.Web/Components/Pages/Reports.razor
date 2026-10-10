@@ -145,6 +145,27 @@
         }
         else
         {
+            <div class="date-filter book-filter">
+                <label for="financial-book">رقم الدفتر</label>
+
+                <select id="financial-book"
+                        value="@selectedFinancialBook"
+                        disabled="@isLoading"
+                        @onchange="FinancialBookChanged">
+                    <option value="">
+                        @(mode == ReportMode.Financial
+                            ? "اختر الدفتر"
+                            : "كل الدفاتر")
+                    </option>
+
+                    @foreach (var bookNumber in financialBookNumbers)
+                    {
+                        <option value="@bookNumber">
+                            دفتر @bookNumber
+                        </option>
+                    }
+                </select>
+            </div>
             <div class="search-box">
                 <span>⌕</span>
                 <input value="@searchTerm"
@@ -206,7 +227,12 @@
         }
         else if (ResultCount == 0)
         {
-            <div class="empty-state">لا توجد بيانات مطابقة.</div>
+            <div class="empty-state">
+                @(mode == ReportMode.Financial &&
+                  string.IsNullOrWhiteSpace(selectedFinancialBook)
+                    ? "اختر رقم الدفتر لعرض وصولاته."
+                    : "لا توجد بيانات مطابقة.")
+            </div>
         }
             else if (mode == ReportMode.Sponsors)
             {
@@ -650,16 +676,28 @@
                             <tr class="@(item.Status == FinancialEntryStatus.Reversed ? "reversed-row" : null)">
                                 <td>@item.Id</td>
                                 <td><strong>@item.DonorName</strong></td>
-                                <td>@GetEntryTypeName(item.EntryType)</td>
+                                <td>
+                                    @(item.Status == FinancialEntryStatus.Cancelled
+                                        ? "وصل ملغي"
+                                        : GetEntryTypeName(item.EntryType))
+                                </td>
                                 <td>@item.Amount.ToString("0.000")</td>
-                                <td>@GetPaymentMethodName(item.PaymentMethod)</td>
+                                <td>
+                                    @(item.Status == FinancialEntryStatus.Cancelled
+                                        ? "—"
+                                        : GetPaymentMethodName(item.PaymentMethod))
+                                </td>
                                 <td>@(item.BookNumber ?? "—")</td>
                                 <td>@(item.ReceiptNumber ?? "—")</td>
                                 <td>@item.EntryDate.ToString("yyyy/MM/dd")</td>
                                 <td>
-                                    @(item.Status == FinancialEntryStatus.Confirmed
-                                        ? "مؤكدة"
-                                        : "ملغاة")
+                                    @(item.Status switch
+                                    {
+                                        FinancialEntryStatus.Confirmed => "مؤكدة",
+                                        FinancialEntryStatus.Reversed => "معكوسة",
+                                        FinancialEntryStatus.Cancelled => "وصل ملغي",
+                                        _ => item.Status.ToString()
+                                    })
                                 </td>
                             </tr>
                         }
@@ -667,6 +705,44 @@
                 </table>
             </div>
         }
+            @if (!isLoading &&
+         (mode is ReportMode.Financial or ReportMode.Donations) &&
+         financialRows.Count > 0)
+            {
+                <section class="financial-type-totals">
+                    <h3>المجاميع حسب نوع الإدخال</h3>
+
+                    <p>
+                        للحركات المؤكدة المطابقة لفلاتر التقرير
+                    </p>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>نوع الإدخال</th>
+                                <th>المجموع بالدينار</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var total in FinancialTypeTotals)
+                            {
+                                <tr>
+                                    <td>@GetEntryTypeName(total.Type)</td>
+                                    <td>@total.Amount.ToString("0.000")</td>
+                                </tr>
+                            }
+                        </tbody>
+
+                        <tfoot>
+                            <tr>
+                                <th>المجموع الكلي</th>
+                                <th>@ConfirmedTotal.ToString("0.000")</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </section>
+            }
     </section>
     @if (!isLoading && ResultCount > 0)
 {
@@ -752,6 +828,38 @@
     private int LastVisibleRow =>
         Math.Min(currentPage * pageSize, ResultCount);
 
+    private IReadOnlyList<string> financialBookNumbers = [];
+
+    private string selectedFinancialBook = string.Empty;
+    private string? loadedFinancialBook;
+
+    private bool financialBooksLoaded;
+
+    private readonly SemaphoreSlim reportLoadGate = new(1, 1);
+
+    private IReadOnlyList<(FinancialEntryType Type, decimal Amount)>
+    FinancialTypeTotals =>
+    Enum.GetValues<FinancialEntryType>()
+        .Select(type => (
+            Type: type,
+            Amount: financialRows
+                .Where(item =>
+                    item.Status == FinancialEntryStatus.Confirmed &&
+                    item.EntryType == type)
+                .Sum(item => item.Amount)))
+        .ToList();
+
+    private async Task FinancialBookChanged(ChangeEventArgs args)
+    {
+        selectedFinancialBook = args.Value?.ToString() ?? string.Empty;
+        currentPage = 1;
+        if (mode == ReportMode.Financial)
+        {
+            pageSize = 50;
+        }
+        await LoadAsync();
+    }
+
     private IEnumerable<int> VisiblePageNumbers
     {
         get
@@ -793,8 +901,15 @@
         ReportMode.Sponsors => "سجل الكفلاء",
         ReportMode.Beneficiaries => "سجل المكفولين",
         ReportMode.BeneficiaryArchive => "أرشيف المكفولين",
-        ReportMode.Financial => "تقرير الإدخال المالي",
-        ReportMode.Donations => "كشف التبرعات",
+        ReportMode.Financial =>
+            string.IsNullOrWhiteSpace(loadedFinancialBook)
+                ? "تقرير الإدخال المالي"
+                : $"تقرير الإدخال المالي — دفتر {loadedFinancialBook}",
+
+        ReportMode.Donations =>
+            string.IsNullOrWhiteSpace(loadedFinancialBook)
+                ? "كشف التبرعات"
+                : $"كشف التبرعات — دفتر {loadedFinancialBook}",
         _ => "التقرير"
     };
 
@@ -824,6 +939,7 @@
     private async Task ChangeModeAsync(ReportMode newMode)
     {
         mode = newMode;
+        pageSize = mode == ReportMode.Financial ? 50 : 10;
         searchTerm = string.Empty;
         errorMessage = null;
 
@@ -852,6 +968,8 @@
 
     private async Task LoadAsync()
     {
+        await reportLoadGate.WaitAsync();
+
         isLoading = true;
         errorMessage = null;
 
@@ -862,6 +980,17 @@
             financialRows = [];
             sponsorRows = [];
             beneficiaryRows = [];
+
+            loadedFinancialBook = null;
+
+            if ((mode is ReportMode.Financial or ReportMode.Donations) &&
+           !financialBooksLoaded)
+            {
+                financialBookNumbers =
+                    await ReportService.GetFinancialBookNumbersAsync();
+
+                financialBooksLoaded = true;
+            }
 
             switch (mode)
             {
@@ -885,19 +1014,38 @@
                     break;
 
                 case ReportMode.Financial:
+                    var requestedBook = selectedFinancialBook.Trim();
+
+                    if (string.IsNullOrWhiteSpace(requestedBook))
+                    {
+                        financialRows = [];
+                        break;
+                    }
+
                     financialRows =
                         await ReportService.GetFinancialEntriesAsync(
                             fromDate,
                             toDate,
-                            searchTerm);
+                            searchTerm,
+                            bookNumber: requestedBook);
+
+                    loadedFinancialBook = requestedBook;
                     break;
 
                 case ReportMode.Donations:
+                    requestedBook = 
+                        string.IsNullOrWhiteSpace(selectedFinancialBook)
+                        ? null
+                        : selectedFinancialBook.Trim();
+
                     financialRows =
                         await ReportService.GetDonationsAsync(
                             fromDate,
                             toDate,
-                            searchTerm);
+                            searchTerm,
+                            bookNumber: requestedBook);
+
+                    loadedFinancialBook = requestedBook;
                     break;
                 case ReportMode.Sponsors:
                     sponsorRows =
@@ -933,13 +1081,26 @@
         finally
         {
             isLoading = false;
+            reportLoadGate.Release();
         }
     }
 
     private async Task PrintAsync()
+{
+    if (isLoading)
     {
-        await JS.InvokeVoidAsync("window.print");
+        return;
     }
+
+    if (mode == ReportMode.Financial &&
+        string.IsNullOrWhiteSpace(loadedFinancialBook))
+    {
+        errorMessage = "اختر الدفتر قبل طباعة التقرير.";
+        return;
+    }
+
+    await JS.InvokeVoidAsync("window.print");
+}
 
     private string TabClass(ReportMode tab) =>
         mode == tab ? "active" : string.Empty;
@@ -997,6 +1158,18 @@
     }
     private async Task ExportExcelAsync()
     {
+        if (isLoading)
+        {
+            return;
+        }
+
+        if (mode == ReportMode.Financial &&
+            string.IsNullOrWhiteSpace(loadedFinancialBook))
+        {
+            errorMessage = "اختر الدفتر قبل تصدير التقرير.";
+            return;
+        }
+
         errorMessage = null;
 
         try

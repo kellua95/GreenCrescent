@@ -3,6 +3,7 @@
     public enum FinancialEntryStatus
     {
         Confirmed = 1,
-        Reversed = 2
+        Reversed = 2,
+        Cancelled = 3
     }
 }

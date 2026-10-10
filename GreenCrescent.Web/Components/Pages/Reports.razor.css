@@ -587,3 +587,97 @@ button {
         color: white;
         background: #08783e;
     }
+.book-filter {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    min-width: 200px;
+}
+
+    .book-filter label {
+        color: #405148;
+        font-size: .85rem;
+        font-weight: 700;
+    }
+
+    .book-filter select {
+        width: 100%;
+        min-height: 46px;
+        padding: .65rem .85rem;
+        color: #243b2e;
+        background-color: #fff;
+        border: 1px solid #cbd9cf;
+        border-radius: 10px;
+        font: inherit;
+        cursor: pointer;
+        transition: border-color 150ms ease, box-shadow 150ms ease;
+    }
+
+        .book-filter select:hover:not(:disabled) {
+            border-color: #08783e;
+        }
+
+        .book-filter select:focus {
+            outline: none;
+            border-color: #08783e;
+            box-shadow: 0 0 0 3px rgb(8 120 62 / 12%);
+        }
+
+        .book-filter select:disabled {
+            opacity: .6;
+            cursor: wait;
+        }
+
+@media (max-width: 700px) {
+    .book-filter {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+.financial-type-totals {
+    max-width: 560px;
+    margin-top: 1.25rem;
+    padding: 1rem;
+    background: white;
+    border: 1px solid #dce7df;
+    border-radius: 12px;
+}
+
+    .financial-type-totals h3 {
+        margin: 0 0 .4rem;
+        color: #08783e;
+    }
+
+    .financial-type-totals p {
+        margin: 0 0 .8rem;
+        color: #68746d;
+        font-size: .85rem;
+    }
+
+    .financial-type-totals table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .financial-type-totals th,
+    .financial-type-totals td {
+        padding: .65rem .8rem;
+        text-align: right;
+        border-bottom: 1px solid #e5ece7;
+    }
+
+    .financial-type-totals tfoot th {
+        color: #075d32;
+        background: #e8f5ed;
+        border-top: 2px solid #08783e;
+        border-bottom: 0;
+        font-weight: 800;
+    }
+
+@media print {
+    .financial-type-totals {
+        break-inside: avoid;
+        box-shadow: none;
+    }
+}
