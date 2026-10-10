@@ -213,20 +213,22 @@ public sealed class ExcelExportService : IExcelExportService
 
         summaryRow++;
 
-        foreach (var type in Enum.GetValues<FinancialEntryType>())
+
+        foreach (var method in Enum.GetValues<PaymentMethod>())
         {
-            var typeTotal = confirmedRows
-                .Where(item => item.EntryType == type)
+            var methodTotal = confirmedRows
+                .Where(item => item.PaymentMethod == method)
                 .Sum(item => item.Amount);
 
             sheet.Cell(summaryRow, 3).Value =
-                GetEntryTypeName(type);
+                GetPaymentMethodName(method);
 
             sheet.Cell(summaryRow, 4).Value =
-                typeTotal;
+                methodTotal;
 
             summaryRow++;
         }
+
 
         var totalRow = summaryRow;
 

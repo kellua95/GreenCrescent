@@ -710,7 +710,7 @@
          financialRows.Count > 0)
             {
                 <section class="financial-type-totals">
-                    <h3>المجاميع حسب نوع الإدخال</h3>
+                    <h3>المجاميع حسب طريقة الدفع</h3>
 
                     <p>
                         للحركات المؤكدة المطابقة لفلاتر التقرير
@@ -719,7 +719,7 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>نوع الإدخال</th>
+                                <th> طريقة الدفع</th>
                                 <th>المجموع بالدينار</th>
                             </tr>
                         </thead>
@@ -728,7 +728,7 @@
                             @foreach (var total in FinancialTypeTotals)
                             {
                                 <tr>
-                                    <td>@GetEntryTypeName(total.Type)</td>
+                                    <td>@GetPaymentMethodName(total.Method)</td>
                                     <td>@total.Amount.ToString("0.000")</td>
                                 </tr>
                             }
@@ -837,15 +837,15 @@
 
     private readonly SemaphoreSlim reportLoadGate = new(1, 1);
 
-    private IReadOnlyList<(FinancialEntryType Type, decimal Amount)>
+    private IReadOnlyList<(PaymentMethod Method, decimal Amount)>
     FinancialTypeTotals =>
-    Enum.GetValues<FinancialEntryType>()
-        .Select(type => (
-            Type: type,
+    Enum.GetValues<PaymentMethod>()
+        .Select(method => (
+            Method: method,
             Amount: financialRows
                 .Where(item =>
                     item.Status == FinancialEntryStatus.Confirmed &&
-                    item.EntryType == type)
+                    item.PaymentMethod == method)
                 .Sum(item => item.Amount)))
         .ToList();
 
