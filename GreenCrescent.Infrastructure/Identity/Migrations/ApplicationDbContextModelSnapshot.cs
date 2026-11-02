@@ -286,6 +286,10 @@ namespace GreenCrescent.Infrastructure.Identity.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<string>("ApplicantEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("ApplicantName")
                         .IsRequired()
                         .HasMaxLength(200)

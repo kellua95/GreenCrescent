@@ -9,6 +9,7 @@ public sealed record OrphanApplicationDetailsDto(
     string ApplicantName,
     string ApplicantPhoneNumber,
     string? ApplicantRelationship,
+    string ApplicantEmail,
 
     string OrphanFirstName,
     string OrphanFatherName,

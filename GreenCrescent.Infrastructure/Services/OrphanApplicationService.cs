@@ -10,7 +10,8 @@ namespace GreenCrescent.Infrastructure.Services;
 
 public sealed class OrphanApplicationService(
     ApplicationDbContext dbContext,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    IOrphanApplicationEmailService emailService)
     : IOrphanApplicationService
 {
     public async Task<SubmitOrphanApplicationResult>
@@ -67,6 +68,10 @@ public sealed class OrphanApplicationService(
             ApplicantPhoneNumber =
                 request.ApplicantPhoneNumber.Trim(),
 
+            ApplicantEmail =
+                NormalizeOptional(
+                    request.ApplicantEmail),
+
             ApplicantRelationship =
                 NormalizeOptional(
                     request.ApplicantRelationship),
@@ -100,8 +105,7 @@ public sealed class OrphanApplicationService(
                 request.Address.Trim(),
 
             PhoneNumber =
-                NormalizeOptional(
-                    request.PhoneNumber),
+                request.PhoneNumber.Trim(),
 
             PhotoData = request.PhotoData?.ToArray(),
             PhotoContentType = photoContentType,
@@ -220,7 +224,7 @@ public sealed class OrphanApplicationService(
                 : null,
 
             DecisionReason = automaticallyRejected
-                ? "تم رفض الطلب تلقائيًا لأن اليتيم بلغ الحد الأعلى المسموح وهو 15 سنة."
+                ? "تم رفض الطلب تلقائيًا لأن عمر اليتيم 10 سنوات أو أكثر (ينبغي أن يكون عمر اليتيم أقل من 10 سنوات حتى يتم القبول)."
                 : null,
 
             FamilyMembers = request.FamilyMembers
@@ -258,6 +262,18 @@ public sealed class OrphanApplicationService(
 
         await dbContext.SaveChangesAsync(
             cancellationToken);
+
+        if (automaticallyRejected)
+        {
+            await emailService.SendDecisionEmailAsync(
+                application.ApplicantEmail,
+                application.ApplicantName,
+                application.GetOrphanFullName(),
+                application.TrackingCode,
+                isApproved: false,
+                reason: application.DecisionReason,
+                cancellationToken: cancellationToken);
+        }
 
         return new SubmitOrphanApplicationResult(
             application.Id,
@@ -436,8 +452,8 @@ public sealed class OrphanApplicationService(
     }
 
     public async Task<OrphanApplicationDetailsDto?> GetByIdAsync(
-    int id,
-    CancellationToken cancellationToken = default)
+        int id,
+        CancellationToken cancellationToken = default)
     {
         await EnsureApplicationsAccessAsync(cancellationToken);
         var application =
@@ -476,6 +492,7 @@ public sealed class OrphanApplicationService(
             application.ApplicantName,
             application.ApplicantPhoneNumber,
             application.ApplicantRelationship,
+            application.ApplicantEmail ?? string.Empty, // <--- تم إضافته هنا بالترتيب الجديد
 
             application.OrphanFirstName,
             application.OrphanFatherName,
@@ -532,10 +549,10 @@ public sealed class OrphanApplicationService(
             application.Notes,
 
             familyMembers)
-            {
-                PhotoData = application.PhotoData,
-                PhotoContentType = application.PhotoContentType
-            };
+        {
+            PhotoData = application.PhotoData,
+            PhotoContentType = application.PhotoContentType
+        };
     }
 
     public async Task MarkUnderReviewAsync(
@@ -569,8 +586,7 @@ public sealed class OrphanApplicationService(
         application.Status =
             OrphanApplicationStatus.UnderReview;
 
-        application.ReviewedByUserId =
-            await currentUserService.GetUserIdAsync();
+        application.ReviewedByUserId = reviewerId;
 
         application.UpdatedAtUtc =
             DateTime.UtcNow;
@@ -614,7 +630,7 @@ public sealed class OrphanApplicationService(
         if (application.IsAutomaticallyRejected)
         {
             throw new InvalidOperationException(
-                "لا يمكن قبول الطلب لأن اليتيم بلغ 15 سنة عند تقديمه.");
+                "لا يمكن قبول الطلب لأن عمر اليتيم 10 سنوات أو أكثر عند تقديمه.");
         }
 
         var nationalNumberExists =
@@ -630,7 +646,6 @@ public sealed class OrphanApplicationService(
                 "يوجد مكفول مسجل بهذا الرقم الوطني.");
         }
 
-        // يمنع موظفين من توليد رقم الملف نفسه.
         await dbContext.Database.ExecuteSqlRawAsync(
             """
             LOCK TABLE "Beneficiaries"
@@ -645,16 +660,18 @@ public sealed class OrphanApplicationService(
                     cancellationToken)
             ?? 0;
 
+        var orphanFullName = BuildFullName(
+            application.OrphanFirstName,
+            application.OrphanFatherName,
+            application.OrphanGrandfatherName,
+            application.OrphanFamilyName);
+
         var beneficiary = new Beneficiary
         {
             FileNumber =
                 checked(lastFileNumber + 1),
 
-            Name = BuildFullName(
-                application.OrphanFirstName,
-                application.OrphanFatherName,
-                application.OrphanGrandfatherName,
-                application.OrphanFamilyName),
+            Name = orphanFullName,
 
             NationalNumber =
                 application.OrphanNationalNumber,
@@ -727,8 +744,7 @@ public sealed class OrphanApplicationService(
         application.ReviewedAtUtc =
             DateTime.UtcNow;
 
-        application.ReviewedByUserId =
-            await currentUserService.GetUserIdAsync();
+        application.ReviewedByUserId = reviewerId;
 
         application.UpdatedAtUtc =
             DateTime.UtcNow;
@@ -738,6 +754,15 @@ public sealed class OrphanApplicationService(
 
         await transaction.CommitAsync(
             cancellationToken);
+
+        await emailService.SendDecisionEmailAsync(
+            application.ApplicantEmail,
+            application.ApplicantName,
+            orphanFullName,
+            application.TrackingCode,
+            isApproved: true,
+            reason: application.DecisionReason,
+            cancellationToken: cancellationToken);
 
         return beneficiary.Id;
     }
@@ -795,18 +820,26 @@ public sealed class OrphanApplicationService(
         application.ReviewedAtUtc =
             DateTime.UtcNow;
 
-        application.ReviewedByUserId =
-            await currentUserService.GetUserIdAsync();
+        application.ReviewedByUserId = reviewerId;
 
         application.UpdatedAtUtc =
             DateTime.UtcNow;
 
         await dbContext.SaveChangesAsync(
             cancellationToken);
+
+        await emailService.SendDecisionEmailAsync(
+            application.ApplicantEmail,
+            application.ApplicantName,
+            application.GetOrphanFullName(),
+            application.TrackingCode,
+            isApproved: false,
+            reason: application.DecisionReason,
+            cancellationToken: cancellationToken);
     }
 
     private async Task<string> EnsureApplicationsAccessAsync(
-    CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         var userId = await currentUserService.GetUserIdAsync();
 
@@ -844,7 +877,8 @@ public sealed class OrphanApplicationService(
         DateOnly dateOfBirth,
         DateOnly submissionDate)
     {
-        return dateOfBirth.AddYears(15) <=
+        // ينبغي أن يكون عمر اليتيم أقل من 10 سنوات حتى يتم القبول
+        return dateOfBirth.AddYears(10) <=
                submissionDate;
     }
 
@@ -877,6 +911,10 @@ public sealed class OrphanApplicationService(
             "هاتف مقدم الطلب مطلوب.");
 
         Require(
+            request.ApplicantEmail,
+            "البريد الإلكتروني لمقدم الطلب مطلوب لإرسال إشعار القبول أو الرفض.");
+
+        Require(
             request.OrphanFirstName,
             "اسم اليتيم الأول مطلوب.");
 
@@ -899,6 +937,10 @@ public sealed class OrphanApplicationService(
         Require(
             request.Address,
             "عنوان اليتيم مطلوب.");
+
+        Require(
+            request.PhoneNumber,
+            "رقم هاتف المكفول مطلوب.");
 
         Require(
             request.FatherDeathReason,

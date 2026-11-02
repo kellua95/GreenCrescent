@@ -15,6 +15,9 @@ public sealed class OrphanApplication : BaseEntity
     public string ApplicantPhoneNumber { get; set; } =
         string.Empty;
 
+    public string ApplicantEmail { get; set; } =
+        string.Empty;
+
     public string? ApplicantRelationship { get; set; }
 
     // بيانات اليتيم

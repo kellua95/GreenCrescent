@@ -1,4 +1,4 @@
-﻿@page "/orphan-application"
+﻿@page "/oa"
 @rendermode InteractiveServer
 @attribute [AllowAnonymous]
 
@@ -7,7 +7,17 @@
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Forms
 @inject IOrphanApplicationService OrphanApplicationService
+@inject IJSRuntime JSRuntime
 
+<style>
+    .sidebar {
+        display: none !important;
+        width: 0 !important;
+    }   
+    .sidebar-toggle {
+        display: none !important;
+    }
+</style>
 <PageTitle>طلب كفالة يتيم</PageTitle>
 
 <div class="application-page" dir="rtl">
@@ -41,8 +51,8 @@
             @if (wasAutomaticallyRejected)
             {
                 <div class="automatic-rejection">
-                    لم يحقق الطلب شرط العمر؛ لأن اليتيم بلغ
-                    الخامسة عشرة من عمره. تم حفظ الطلب في الأرشيف
+                    لم يحقق الطلب شرط العمر؛ حيث ينبغي أن يكون عمر اليتيم
+                    أقل من 10 سنوات حتى يتم القبول. تم حفظ الطلب في الأرشيف
                     لمراجعته عند الحاجة.
                 </div>
             }
@@ -91,6 +101,15 @@
                     </div>
 
                     <div class="form-field">
+                        <label>البريد الإلكتروني <b>*</b></label>
+                        <input @bind="form.ApplicantEmail"
+                               type="email"
+                               maxlength="200"
+                               inputmode="email"
+                               placeholder="example@domain.com" />
+                    </div>
+
+                    <div class="form-field">
                         <label>صلة مقدم الطلب باليتيم</label>
                         <input @bind="form.ApplicantRelationship"
                                maxlength="100" />
@@ -105,6 +124,10 @@
                         <h2>بيانات اليتيم</h2>
                         <p>المعلومات الشخصية والرسمية لليتيم.</p>
                     </div>
+                </div>
+
+                <div class="alert warning-alert" style="margin-bottom: 1rem; font-weight: 600;">
+                    ملاحظة: ينبغي أن يكون عمر اليتيم أقل من 10 سنوات حتى يتم القبول.
                 </div>
 
                 <div class="form-grid four-columns">
@@ -201,7 +224,7 @@
                     </div>
 
                     <div class="form-field">
-                        <label>رقم هاتف اليتيم إن وجد</label>
+                        <label>رقم هاتف المكفول <b>*</b></label>
                         <input @bind="form.PhoneNumber"
                                maxlength="30"
                                inputmode="tel" />
@@ -676,6 +699,7 @@
 
         if (errorMessage is not null)
         {
+            await JSRuntime.InvokeVoidAsync("window.scrollTo", new { top = 0, behavior = "smooth" });
             return;
         }
 
@@ -718,10 +742,20 @@
 
     private string? ValidateForm()
     {
+        if (string.IsNullOrWhiteSpace(form.ApplicantEmail) ||
+            !form.ApplicantEmail.Contains('@'))
+        {
+            return "يرجى إدخال بريد إلكتروني صحيح لمقدم الطلب.";
+        }
+
+        if (string.IsNullOrWhiteSpace(form.PhoneNumber))
+        {
+            return "رقم هاتف المكفول مطلوب.";
+        }
         if (string.IsNullOrWhiteSpace(guardianFirstName) ||
-    string.IsNullOrWhiteSpace(guardianFatherName) ||
-    string.IsNullOrWhiteSpace(guardianGrandfatherName) ||
-    string.IsNullOrWhiteSpace(guardianFamilyName))
+            string.IsNullOrWhiteSpace(guardianFatherName) ||
+            string.IsNullOrWhiteSpace(guardianGrandfatherName) ||
+            string.IsNullOrWhiteSpace(guardianFamilyName))
         {
             return "يرجى إدخال الاسم الرباعي للمعيل.";
         }

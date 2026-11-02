@@ -10,6 +10,9 @@ public sealed class SubmitOrphanApplicationRequest
     public string ApplicantPhoneNumber { get; set; } =
         string.Empty;
 
+    public string ApplicantEmail { get; set; } =
+        string.Empty;
+
     public string? ApplicantRelationship { get; set; }
 
     public string OrphanFirstName { get; set; } =
@@ -36,7 +39,8 @@ public sealed class SubmitOrphanApplicationRequest
     public string Address { get; set; } =
         string.Empty;
 
-    public string? PhoneNumber { get; set; }
+    public string PhoneNumber { get; set; } =
+        string.Empty;
 
     public byte[]? PhotoData { get; set; }
 

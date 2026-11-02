@@ -229,6 +229,12 @@ public sealed class ReportService(
                 EF.Functions.ILike(
                     item.Name,
                     $"%{term}%") ||
+                    (
+                    item.GuardianName != null &&
+                    EF.Functions.ILike(
+                        item.GuardianName,
+                        $"%{term}%")
+                ) ||
                 (
                     item.PhoneNumber != null &&
                     EF.Functions.ILike(
