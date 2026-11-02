@@ -10,6 +10,7 @@
 @inject ISponsorService SponsorService
 @inject IBeneficiaryService BeneficiaryService
 @inject ISponsorshipService SponsorshipService
+@inject AuthenticationStateProvider AuthStateProvider
 @using GreenCrescent.Application.Features.ResponsibleSheikhs
 @inject IResponsibleSheikhService ResponsibleSheikhService
 
@@ -106,9 +107,23 @@
                                     </td>
 
                                     <td>
-                                        <span class="@GetEndDateClass(sponsorship.EndDate)">
-                                            @sponsorship.EndDate.ToString("yyyy/MM/dd")
-                                        </span>
+                                        @if (isAdminUser)
+                                        {
+                                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                <InputDate @bind-Value="sponsorship.EndDate"
+                                                           class="form-control form-control-sm"
+                                                           style="width: 130px;" />
+                                                <button class="edit-button" @onclick="() => SaveEndDateAsync(sponsorship.Id, sponsorship.EndDate)">
+                                                    حفظ
+                                                </button>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="@GetEndDateClass(sponsorship.EndDate)">
+                                                @sponsorship.EndDate.ToString("yyyy/MM/dd")
+                                            </span>
+                                        }
                                     </td>
                                 </tr>
                             }
@@ -457,11 +472,17 @@
     private bool isLoading = true;
     private bool isSaving;
 
+    private bool isAdminUser;
+
     private IReadOnlyList<ResponsibleSheikhDto> responsibleSheikhs = [];
 
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        isAdminUser = user.IsInRole("Admin");
+
         responsibleSheikhs =
             await ResponsibleSheikhService.GetActiveAsync();
 
@@ -661,7 +682,20 @@
         message = null;
         errorMessage = null;
     }
-
+    private async Task SaveEndDateAsync(int sponsorshipId, DateOnly newEndDate)
+    {
+        ClearMessages();
+        try
+        {
+            await SponsorshipService.UpdateEndDateAsync(sponsorshipId, newEndDate);
+            message = "تم تحديث تاريخ نهاية الكفالة بنجاح.";
+            await LoadSponsorshipsAsync();
+        }
+        catch (Exception exception)
+        {
+            errorMessage = exception.Message;
+        }
+    }
     private static SponsorshipFormModel NewForm()
     {
         var today = DateOnly.FromDateTime(DateTime.Today);

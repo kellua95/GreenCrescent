@@ -24,6 +24,11 @@ public interface ISponsorshipService
         int pageSize,
         CancellationToken cancellationToken = default);
 
+    Task UpdateEndDateAsync(
+        int sponsorshipId,
+        DateOnly newEndDate,
+        CancellationToken cancellationToken = default);
+
     Task StopAsync(
         int sponsorshipId,
         string reason,

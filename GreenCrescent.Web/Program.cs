@@ -118,7 +118,6 @@ builder.Services.AddScoped<
     IReportService,
     ReportService>();
 
-// أضف هذه السطور في مكان تسجيل الخدمات في Program.cs:
 builder.Services.AddScoped<
     IOrphanApplicationEmailService,
     ResendOrphanApplicationEmailService>();
