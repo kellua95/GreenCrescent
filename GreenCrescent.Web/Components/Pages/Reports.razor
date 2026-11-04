@@ -657,7 +657,12 @@
                                     </button>
                                 </th>
                                 <th>الدفتر</th>
-                                <th>الوصل</th>
+                                <th>
+                                    <button class="sort-button" @onclick='() => SortBy("ReceiptNumber")'>
+                                          الوصل @SortIndicator("ReceiptNumber")
+                                    </button>    
+                                </th>
+                                
                                 <th>
                                     <button class="sort-button" @onclick='() => SortBy("EntryDate")'>
                                         التاريخ @SortIndicator("EntryDate")
