@@ -1378,6 +1378,11 @@
             ("EntryDate", false) =>
                 financialRows.OrderByDescending(x => x.EntryDate),
 
+            ("ReceiptNumber", true) =>
+                financialRows.OrderBy(x => x.ReceiptNumber),
+            ("ReceiptNumber", false) =>
+                financialRows.OrderByDescending(x => x.ReceiptNumber),
+
             ("Status", true) =>
                 financialRows.OrderBy(x => x.Status),
             ("Status", false) =>
