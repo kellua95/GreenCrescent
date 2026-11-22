@@ -791,7 +791,7 @@
         if (!string.IsNullOrWhiteSpace(form.GuardianPhoneNumber))
         {
             // Remove spaces or dashes if users enter them
-            string phone = form.GuardiaPhoneNumber.Trim().Replace(" ", "").Replace("-", "");
+            string phone = form.GuardianPhoneNumber.Trim().Replace(" ", "").Replace("-", "");
 
             if (phone.StartsWith("00962"))
             {
@@ -816,7 +816,7 @@
 
             form.GuardianPhoneNumber = phone;
         }
-        if (form.phoneNumber == form.GuardianPhoneNumber)
+        if (form.PhoneNumber == form.GuardianPhoneNumber)
         {
             return "رقم هاتف المكفول ورقم هاتف المعيل لا يجب أن يكونا نفس رقم الهاتف.";
         }
