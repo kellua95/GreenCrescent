@@ -764,25 +764,25 @@
             // Remove spaces or dashes if users enter them
             string phone = form.PhoneNumber.Trim().Replace(" ", "").Replace("-", "");
 
-            if (phone.StartsWith("00962"))
+            if (phone.StartsWith("+962"))
             {
                 // Replace "00962" (5 chars) with "+962"
-                phone = "+962" + phone.Substring(5);
+                phone = "00962" + phone.Substring(5);
             }
             else if (phone.StartsWith("962"))
             {
                 // Add the missing "+"
-                phone = "+" + phone;
+                phone = "00" + phone;
             }
             else if (phone.StartsWith("07"))
             {
                 // Replace leading "0" with "+962" (e.g., 0791234567 -> +962791234567)
-                phone = "+962" + phone.Substring(1);
+                phone = "00962" + phone.Substring(1);
             }
             else if (phone.StartsWith("7") && phone.Length == 9)
             {
                 // Handle numbers entered without the leading zero (e.g., 791234567 -> +962791234567)
-                phone = "+962" + phone;
+                phone = "00962" + phone;
             }
 
             form.PhoneNumber = phone;
@@ -793,25 +793,25 @@
             // Remove spaces or dashes if users enter them
             string phone = form.GuardianPhoneNumber.Trim().Replace(" ", "").Replace("-", "");
 
-            if (phone.StartsWith("00962"))
+            if (phone.StartsWith("+962"))
             {
                 // Replace "00962" (5 chars) with "+962"
-                phone = "+962" + phone.Substring(5);
+                phone = "00962" + phone.Substring(5);
             }
             else if (phone.StartsWith("962"))
             {
                 // Add the missing "+"
-                phone = "+" + phone;
+                phone = "00" + phone;
             }
             else if (phone.StartsWith("07"))
             {
                 // Replace leading "0" with "+962" (e.g., 0791234567 -> +962791234567)
-                phone = "+962" + phone.Substring(1);
+                phone = "00962" + phone.Substring(1);
             }
             else if (phone.StartsWith("7") && phone.Length == 9)
             {
                 // Handle numbers entered without the leading zero (e.g., 791234567 -> +962791234567)
-                phone = "+962" + phone;
+                phone = "00962" + phone;
             }
 
             form.GuardianPhoneNumber = phone;
