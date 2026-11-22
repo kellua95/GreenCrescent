@@ -5,6 +5,7 @@ using GreenCrescent.Core.Entities;
 using GreenCrescent.Core.Enums;
 using GreenCrescent.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 
 namespace GreenCrescent.Infrastructure.Services;
 
@@ -14,6 +15,8 @@ public sealed class OrphanApplicationService(
     IOrphanApplicationEmailService emailService)
     : IOrphanApplicationService
 {
+    private static readonly ConcurrentDictionary<string, byte> InFlightNationalNumbers = new();
+
     public async Task<SubmitOrphanApplicationResult>
         SubmitAsync(
             SubmitOrphanApplicationRequest request,
@@ -25,262 +28,275 @@ public sealed class OrphanApplicationService(
         var nationalNumber =
             request.OrphanNationalNumber.Trim();
 
-        var beneficiaryExists =
-            await dbContext.Beneficiaries.AnyAsync(
-                item =>
-                    item.NationalNumber == nationalNumber,
-                cancellationToken);
-
-        if (beneficiaryExists)
+        if (!InFlightNationalNumbers.TryAdd(nationalNumber, 0))
         {
             throw new InvalidOperationException(
-                "يوجد مكفول مسجل بهذا الرقم الوطني.");
+                "جاري معالجة طلب سابق بنفس الرقم الوطني. يرجى الانتظار وعدم تكرار الإرسال.");
         }
 
-        var applicationExists =
-            await dbContext.OrphanApplications.AnyAsync(
-                item =>
-                    item.OrphanNationalNumber ==
+        try
+        {
+            var beneficiaryExists =
+                await dbContext.Beneficiaries.AnyAsync(
+                    item =>
+                        item.NationalNumber == nationalNumber,
+                    cancellationToken);
+
+            if (beneficiaryExists)
+            {
+                throw new InvalidOperationException(
+                    "يوجد مكفول مسجل بهذا الرقم الوطني.");
+            }
+
+            var applicationExists =
+                await dbContext.OrphanApplications.AnyAsync(
+                    item =>
+                        item.OrphanNationalNumber ==
+                        nationalNumber,
+                    cancellationToken);
+
+            if (applicationExists)
+            {
+                throw new InvalidOperationException(
+                    "يوجد طلب سابق مسجل بهذا الرقم الوطني. يرجى مراجعة الجمعية باستخدام رقم التتبع السابق.");
+            }
+
+            var submittedAtUtc = DateTime.UtcNow;
+
+            var submissionDate =
+                DateOnly.FromDateTime(submittedAtUtc);
+
+            var automaticallyRejected =
+                HasReachedMaximumAge(
+                    request.DateOfBirth,
+                    submissionDate);
+
+            var application = new OrphanApplication
+            {
+                ApplicantName =
+                    request.ApplicantName.Trim(),
+
+                ApplicantPhoneNumber =
+                    request.ApplicantPhoneNumber.Trim(),
+
+                ApplicantEmail =
+                    NormalizeOptional(
+                        request.ApplicantEmail),
+
+                ApplicantRelationship =
+                    NormalizeOptional(
+                        request.ApplicantRelationship),
+
+                OrphanFirstName =
+                    request.OrphanFirstName.Trim(),
+
+                OrphanFatherName =
+                    request.OrphanFatherName.Trim(),
+
+                OrphanGrandfatherName =
+                    NormalizeOptional(
+                        request.OrphanGrandfatherName),
+
+                OrphanFamilyName =
+                    request.OrphanFamilyName.Trim(),
+
+                OrphanNationalNumber =
                     nationalNumber,
+
+                DateOfBirth =
+                    request.DateOfBirth,
+
+                Nationality =
+                    request.Nationality.Trim(),
+
+                Gender =
+                    request.Gender,
+
+                Address =
+                    request.Address.Trim(),
+
+                PhoneNumber =
+                    request.PhoneNumber.Trim(),
+
+                PhotoData = request.PhotoData?.ToArray(),
+                PhotoContentType = photoContentType,
+
+                FatherDeathDate =
+                    request.FatherDeathDate,
+
+                FatherDeathReason =
+                    request.FatherDeathReason.Trim(),
+
+                MotherName =
+                    request.MotherName.Trim(),
+
+                MotherNationalNumber =
+                    NormalizeOptional(
+                        request.MotherNationalNumber),
+
+                MotherDateOfBirth =
+                    request.MotherDateOfBirth,
+
+                MotherNationality =
+                    NormalizeOptional(
+                        request.MotherNationality),
+
+                IsMotherAlive =
+                    request.IsMotherAlive,
+
+                MotherPhoneNumber =
+                    NormalizeOptional(
+                        request.MotherPhoneNumber),
+
+                GuardianName =
+                    request.GuardianName.Trim(),
+
+                GuardianNationalNumber =
+                    request.GuardianNationalNumber.Trim(),
+
+                GuardianDateOfBirth =
+                    request.GuardianDateOfBirth,
+
+                GuardianNationality =
+                    NormalizeOptional(
+                        request.GuardianNationality),
+
+                GuardianGender =
+                    request.GuardianGender,
+
+                GuardianPhoneNumber =
+                    request.GuardianPhoneNumber.Trim(),
+
+                GuardianRelationship =
+                    NormalizeOptional(
+                        request.GuardianRelationship),
+
+                FamilyMembersCount =
+                    request.FamilyMembersCount,
+
+                SponsoredFamilyMembersCount =
+                    request.SponsoredFamilyMembersCount,
+
+                HasIllness =
+                    request.HasIllness,
+
+                IllnessDescription =
+                    request.HasIllness
+                        ? NormalizeOptional(
+                            request.IllnessDescription)
+                        : null,
+
+                HasHealthInsurance =
+                    request.HasHealthInsurance,
+
+                HealthInsuranceProvider =
+                    request.HasHealthInsurance
+                        ? NormalizeOptional(
+                            request.HealthInsuranceProvider)
+                        : null,
+
+                EducationStage =
+                    NormalizeOptional(
+                        request.EducationStage),
+
+                AcademicAchievement =
+                    NormalizeOptional(
+                        request.AcademicAchievement),
+
+                SchoolDropoutReason =
+                    NormalizeOptional(
+                        request.SchoolDropoutReason),
+
+                AlternativeDirection =
+                    NormalizeOptional(
+                        request.AlternativeDirection),
+
+                TotalMonthlyIncome =
+                    request.TotalMonthlyIncome,
+
+                TotalMonthlyExpenses =
+                    request.TotalMonthlyExpenses,
+
+                Notes =
+                    NormalizeOptional(request.Notes),
+
+                SubmittedAtUtc =
+                    submittedAtUtc,
+
+                Status = automaticallyRejected
+                    ? OrphanApplicationStatus.Rejected
+                    : OrphanApplicationStatus.Submitted,
+
+                IsAutomaticallyRejected =
+                    automaticallyRejected,
+
+                ReviewedAtUtc = automaticallyRejected
+                    ? submittedAtUtc
+                    : null,
+
+                DecisionReason = automaticallyRejected
+                    ? "تم رفض الطلب تلقائيًا لأن عمر اليتيم 10 سنوات أو أكثر (ينبغي أن يكون عمر اليتيم أقل من 10 سنوات حتى يتم القبول)."
+                    : null,
+
+                FamilyMembers = request.FamilyMembers
+                    .Select(item =>
+                        new OrphanApplicationFamilyMember
+                        {
+                            Name = item.Name.Trim(),
+                            DateOfBirth =
+                                item.DateOfBirth,
+                            Gender =
+                                item.Gender,
+                            Relationship =
+                                NormalizeOptional(
+                                    item.Relationship),
+                            EducationalStatus =
+                                NormalizeOptional(
+                                    item.EducationalStatus),
+                            SocialStatus =
+                                NormalizeOptional(
+                                    item.SocialStatus),
+                            HealthStatus =
+                                NormalizeOptional(
+                                    item.HealthStatus),
+                            Occupation =
+                                NormalizeOptional(
+                                    item.Occupation),
+                            MonthlyIncome =
+                                item.MonthlyIncome
+                        })
+                    .ToList()
+            };
+
+            dbContext.OrphanApplications.Add(
+                application);
+
+            await dbContext.SaveChangesAsync(
                 cancellationToken);
 
-        if (applicationExists)
-        {
-            throw new InvalidOperationException(
-                "يوجد طلب سابق مسجل بهذا الرقم الوطني. يرجى مراجعة الجمعية باستخدام رقم التتبع السابق.");
-        }
+            if (automaticallyRejected)
+            {
+                await emailService.SendDecisionEmailAsync(
+                    application.ApplicantEmail,
+                    application.ApplicantName,
+                    application.GetOrphanFullName(),
+                    application.TrackingCode,
+                    isApproved: false,
+                    reason: application.DecisionReason,
+                    cancellationToken: cancellationToken);
+            }
 
-        var submittedAtUtc = DateTime.UtcNow;
-
-        var submissionDate =
-            DateOnly.FromDateTime(submittedAtUtc);
-
-        var automaticallyRejected =
-            HasReachedMaximumAge(
-                request.DateOfBirth,
-                submissionDate);
-
-        var application = new OrphanApplication
-        {
-            ApplicantName =
-                request.ApplicantName.Trim(),
-
-            ApplicantPhoneNumber =
-                request.ApplicantPhoneNumber.Trim(),
-
-            ApplicantEmail =
-                NormalizeOptional(
-                    request.ApplicantEmail),
-
-            ApplicantRelationship =
-                NormalizeOptional(
-                    request.ApplicantRelationship),
-
-            OrphanFirstName =
-                request.OrphanFirstName.Trim(),
-
-            OrphanFatherName =
-                request.OrphanFatherName.Trim(),
-
-            OrphanGrandfatherName =
-                NormalizeOptional(
-                    request.OrphanGrandfatherName),
-
-            OrphanFamilyName =
-                request.OrphanFamilyName.Trim(),
-
-            OrphanNationalNumber =
-                nationalNumber,
-
-            DateOfBirth =
-                request.DateOfBirth,
-
-            Nationality =
-                request.Nationality.Trim(),
-
-            Gender =
-                request.Gender,
-
-            Address =
-                request.Address.Trim(),
-
-            PhoneNumber =
-                request.PhoneNumber.Trim(),
-
-            PhotoData = request.PhotoData?.ToArray(),
-            PhotoContentType = photoContentType,
-
-            FatherDeathDate =
-                request.FatherDeathDate,
-
-            FatherDeathReason =
-                request.FatherDeathReason.Trim(),
-
-            MotherName =
-                request.MotherName.Trim(),
-
-            MotherNationalNumber =
-                NormalizeOptional(
-                    request.MotherNationalNumber),
-
-            MotherDateOfBirth =
-                request.MotherDateOfBirth,
-
-            MotherNationality =
-                NormalizeOptional(
-                    request.MotherNationality),
-
-            IsMotherAlive =
-                request.IsMotherAlive,
-
-            MotherPhoneNumber =
-                NormalizeOptional(
-                    request.MotherPhoneNumber),
-
-            GuardianName =
-                request.GuardianName.Trim(),
-
-            GuardianNationalNumber =
-                request.GuardianNationalNumber.Trim(),
-
-            GuardianDateOfBirth =
-                request.GuardianDateOfBirth,
-
-            GuardianNationality =
-                NormalizeOptional(
-                    request.GuardianNationality),
-
-            GuardianGender =
-                request.GuardianGender,
-
-            GuardianPhoneNumber =
-                request.GuardianPhoneNumber.Trim(),
-
-            GuardianRelationship =
-                NormalizeOptional(
-                    request.GuardianRelationship),
-
-            FamilyMembersCount =
-                request.FamilyMembersCount,
-
-            SponsoredFamilyMembersCount =
-                request.SponsoredFamilyMembersCount,
-
-            HasIllness =
-                request.HasIllness,
-
-            IllnessDescription =
-                request.HasIllness
-                    ? NormalizeOptional(
-                        request.IllnessDescription)
-                    : null,
-
-            HasHealthInsurance =
-                request.HasHealthInsurance,
-
-            HealthInsuranceProvider =
-                request.HasHealthInsurance
-                    ? NormalizeOptional(
-                        request.HealthInsuranceProvider)
-                    : null,
-
-            EducationStage =
-                NormalizeOptional(
-                    request.EducationStage),
-
-            AcademicAchievement =
-                NormalizeOptional(
-                    request.AcademicAchievement),
-
-            SchoolDropoutReason =
-                NormalizeOptional(
-                    request.SchoolDropoutReason),
-
-            AlternativeDirection =
-                NormalizeOptional(
-                    request.AlternativeDirection),
-
-            TotalMonthlyIncome =
-                request.TotalMonthlyIncome,
-
-            TotalMonthlyExpenses =
-                request.TotalMonthlyExpenses,
-
-            Notes =
-                NormalizeOptional(request.Notes),
-
-            SubmittedAtUtc =
-                submittedAtUtc,
-
-            Status = automaticallyRejected
-                ? OrphanApplicationStatus.Rejected
-                : OrphanApplicationStatus.Submitted,
-
-            IsAutomaticallyRejected =
-                automaticallyRejected,
-
-            ReviewedAtUtc = automaticallyRejected
-                ? submittedAtUtc
-                : null,
-
-            DecisionReason = automaticallyRejected
-                ? "تم رفض الطلب تلقائيًا لأن عمر اليتيم 10 سنوات أو أكثر (ينبغي أن يكون عمر اليتيم أقل من 10 سنوات حتى يتم القبول)."
-                : null,
-
-            FamilyMembers = request.FamilyMembers
-                .Select(item =>
-                    new OrphanApplicationFamilyMember
-                    {
-                        Name = item.Name.Trim(),
-                        DateOfBirth =
-                            item.DateOfBirth,
-                        Gender =
-                            item.Gender,
-                        Relationship =
-                            NormalizeOptional(
-                                item.Relationship),
-                        EducationalStatus =
-                            NormalizeOptional(
-                                item.EducationalStatus),
-                        SocialStatus =
-                            NormalizeOptional(
-                                item.SocialStatus),
-                        HealthStatus =
-                            NormalizeOptional(
-                                item.HealthStatus),
-                        Occupation =
-                            NormalizeOptional(
-                                item.Occupation),
-                        MonthlyIncome =
-                            item.MonthlyIncome
-                    })
-                .ToList()
-        };
-
-        dbContext.OrphanApplications.Add(
-            application);
-
-        await dbContext.SaveChangesAsync(
-            cancellationToken);
-
-        if (automaticallyRejected)
-        {
-            await emailService.SendDecisionEmailAsync(
-                application.ApplicantEmail,
-                application.ApplicantName,
-                application.GetOrphanFullName(),
+            return new SubmitOrphanApplicationResult(
+                application.Id,
                 application.TrackingCode,
-                isApproved: false,
-                reason: application.DecisionReason,
-                cancellationToken: cancellationToken);
+                application.Status,
+                application.IsAutomaticallyRejected,
+                application.DecisionReason);
         }
-
-        return new SubmitOrphanApplicationResult(
-            application.Id,
-            application.TrackingCode,
-            application.Status,
-            application.IsAutomaticallyRejected,
-            application.DecisionReason);
+        finally
+        {
+            InFlightNationalNumbers.TryRemove(nationalNumber, out _);
+        }
     }
 
     public async Task<
