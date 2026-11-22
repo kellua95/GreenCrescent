@@ -759,6 +759,67 @@
         {
             return "يرجى إدخال الاسم الرباعي للمعيل.";
         }
+        if (!string.IsNullOrWhiteSpace(form.PhoneNumber))
+        {
+            // Remove spaces or dashes if users enter them
+            string phone = form.PhoneNumber.Trim().Replace(" ", "").Replace("-", "");
+
+            if (phone.StartsWith("00962"))
+            {
+                // Replace "00962" (5 chars) with "+962"
+                phone = "+962" + phone.Substring(5);
+            }
+            else if (phone.StartsWith("962"))
+            {
+                // Add the missing "+"
+                phone = "+" + phone;
+            }
+            else if (phone.StartsWith("07"))
+            {
+                // Replace leading "0" with "+962" (e.g., 0791234567 -> +962791234567)
+                phone = "+962" + phone.Substring(1);
+            }
+            else if (phone.StartsWith("7") && phone.Length == 9)
+            {
+                // Handle numbers entered without the leading zero (e.g., 791234567 -> +962791234567)
+                phone = "+962" + phone;
+            }
+
+            form.PhoneNumber = phone;
+        }
+
+        if (!string.IsNullOrWhiteSpace(form.GuardianPhoneNumber))
+        {
+            // Remove spaces or dashes if users enter them
+            string phone = form.GuardiaPhoneNumber.Trim().Replace(" ", "").Replace("-", "");
+
+            if (phone.StartsWith("00962"))
+            {
+                // Replace "00962" (5 chars) with "+962"
+                phone = "+962" + phone.Substring(5);
+            }
+            else if (phone.StartsWith("962"))
+            {
+                // Add the missing "+"
+                phone = "+" + phone;
+            }
+            else if (phone.StartsWith("07"))
+            {
+                // Replace leading "0" with "+962" (e.g., 0791234567 -> +962791234567)
+                phone = "+962" + phone.Substring(1);
+            }
+            else if (phone.StartsWith("7") && phone.Length == 9)
+            {
+                // Handle numbers entered without the leading zero (e.g., 791234567 -> +962791234567)
+                phone = "+962" + phone;
+            }
+
+            form.GuardianPhoneNumber = phone;
+        }
+        if (form.phoneNumber == form.GuardianPhoneNumber)
+        {
+            return "رقم هاتف المكفول ورقم هاتف المعيل لا يجب أن يكونا نفس رقم الهاتف.";
+        }
 
         form.GuardianName = string.Join(
             " ",

@@ -40,6 +40,10 @@ public sealed class ResendOrphanApplicationEmailService : IOrphanApplicationEmai
             ? "<p style='color:#15803d;font-weight:bold;'>يسرنا إبلاغكم بأنه قد تمت الموافقة على طلب كفالة اليتيم, يرجى احضار الوثائق المطلوبة والتوجه الى فرع اربد.</p>"
             : "<p style='color:#b91c1c;font-weight:bold;'>نعتذر منكم، لم يتم قبول طلب كفالة اليتيم.</p>";
 
+        var papers = isApproved
+            ? "<p style='font-weight:bold;'>الوثائق المطلوبة:</p><ul><li>صورة شخصية لليتيم </li> <li>شهادة وفاة</li><li>شهادة الميلاد لليتيم</li> <li>دفتر العائلة</li> <li>حجة وصاية</li> <li>شهادة مدرسة ان وجد</li> <li>عقد ايجاران وجد</li> <li>تقارير طبية ان وجد</li></ul>"
+            : string.Empty;
+
         var reasonHtml = !string.IsNullOrWhiteSpace(reason)
             ? $"<p><strong>الملاحظات / السبب:</strong> {reason}</p>"
             : string.Empty;
@@ -54,6 +58,7 @@ public sealed class ResendOrphanApplicationEmailService : IOrphanApplicationEmai
                     <p>الأخ/الأخت <strong>{applicantName}</strong> المحترم/ة،</p>
                     {statusHtml}
                     {reasonHtml}
+                    {papers}
                     <p><strong>اسم اليتيم:</strong> {orphanFullName}</p>
                     <p><strong>رقم التتبع الخاص بالطلب:</strong> {trackingCode}</p>
                     <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;" />
